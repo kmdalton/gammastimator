@@ -29,6 +29,30 @@ argDict = {
     "--runlength"              : "Approximate number of phi angles per crystal",
 }
 
+datatypes = {
+    "--multiplicity"           : float ,
+    "--missing"                : float , 
+    "--intensityshape"         : float ,
+    "--intensityloc"           : float , 
+    "--intensityslope"         : float ,
+    "--intensityoffset"        : float ,
+    "--reflectionsperimage"    : int,
+    "--reflectionsperimagestd" : int,
+    "--minreflectionsperimage" : int,
+    "--minimages"              : int,
+    "--meannimages"            : int,
+    "--stdimages"              : int, 
+    "--onreps"                 : int,
+    "--offreps"                : int,
+    "--sigintercept"           : float,
+    "--sigslope"               : float, 
+    "--partialitymean"         : float,
+    "--partialitystd"          : float,
+    "--partialitymin"          : float,
+    "--sigInoise"              : float,
+    "--runlength"              : int,
+}
+
 defaults = {
     "--multiplicity"           : 10.,
     "--missing"                : 0.0, 
@@ -117,18 +141,20 @@ def build_model(offFN, onFN, **kw):
     I = None
     for i in range(kw.get("onreps", 4)):
         iobs = model.copy()
+        iobs['intensity'] = np.random.gamma(kw.get('intensityloc', 0.2), kw.get('intensityshape', 2.0), len(iobs))
         iobs['SERIES'] = 'on{}'.format(i + 1)
-        iobs['IOBS'] = model['P']*model['Fon']**2
+        iobs['IOBS'] = model['P']*iobs['intensity']*model['Fon']**2
         iobs['SIGMA(IOBS)'] = kw.get("sigintercept", 5.0) + kw.get("sigslope", 0.03)*iobs['IOBS']
-        iobs['IOBS'] = [np.random.normal(i,j) for i,j in zip(iobs['IOBS'], iobs['SIGMA(IOBS)'])]
+        iobs['IOBS'] = [np.random.normal(i, j) for i,j in zip(iobs['IOBS'], iobs['SIGMA(IOBS)'])]
         I = pd.concat((I, iobs))
 
     for i in range(kw.get("offreps", 4)):
         iobs = model.copy()
+        iobs['intensity'] = np.random.gamma(kw.get('intensityloc', 0.2), kw.get('intensityshape', 2.0), len(iobs))
         iobs['SERIES'] = 'off{}'.format(i + 1)
-        iobs['IOBS'] = model['P']*model['Foff']**2
+        iobs['IOBS'] = model['P']*iobs['intensity']*model['Fon']**2
         iobs['SIGMA(IOBS)'] = kw.get("sigintercept", 5.0) + kw.get("sigslope", 0.03)*iobs['IOBS']
-        iobs['IOBS'] = [np.random.normal(i,j) for i,j in zip(iobs['IOBS'], iobs['SIGMA(IOBS)'])]
+        iobs['IOBS'] = [np.random.normal(i, j) for i,j in zip(iobs['IOBS'], iobs['SIGMA(IOBS)'])]
         I = pd.concat((I, iobs))
 
     return I.sample(frac = 1. - kw.get('missing', 0.), replace=False)
@@ -138,7 +164,7 @@ def build_model(offFN, onFN, **kw):
 def main():
     parser = argparse.ArgumentParser()
     for k,v in argDict.items():
-        parser.add_argument(k, help=v, default=defaults.get(k, None))
+        parser.add_argument(k, help=v, default=defaults.get(k, None), type=datatypes.get(k, None))
 
     #TODO: parser.add_argument("--signal_decay", default=None, help="Exponential decay constant to model how I/sig(I) decays with resolution. Default is 0 (no decay).")
 
