@@ -22,7 +22,7 @@ def mesh2d(bounds, points):
     
 
 
-def plot_detector(readings, cmap=None):
+def plot_detector(readings, cmap=None, xpos=None, ypos=None):
     """
     Parameters
     ----------
@@ -38,7 +38,7 @@ def plot_detector(readings, cmap=None):
         X = np.concatenate((X, x.flatten()))
         Y = np.concatenate((Y, y.flatten()))
         Z = np.concatenate((Z, v.flatten()))
-    plt.hexbin(X, Y, Z, cmap=cmap)
+    plt.hexbin(X, Y, Z*1e28, cmap=cmap)
     ax = plt.gca()
     ax.set_facecolor(cmap(0.))
     for k,v in panels.items():
@@ -46,6 +46,11 @@ def plot_detector(readings, cmap=None):
         plt.plot(v[:2], [v[3], v[3]], lw=3, c='w')
         plt.plot([v[0], v[0]], v[2:], lw=3, c='w')
         plt.plot([v[1], v[1]], v[2:], lw=3, c='w')
+    plt.colorbar(label=r"$\frac{d\sigma }{d\Omega }\ (barn\ sr^{-1}\ atom^{-1})$")
+    if xpos is not None:
+        plt.scatter(xpos, ypos, edgecolors='w', facecolors='none')
+    plt.xlabel('cm')
+    plt.ylabel('cm')
     plt.show()
 
 def differential_scattering(l, ko, Z=None, points=None, xpos=None, ypos=None):
