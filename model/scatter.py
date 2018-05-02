@@ -6,12 +6,29 @@ import numpy as np
 import matplotlib as mpl
 from matplotlib import pyplot as plt
 from scipy.constants import *
+from scipy.interpolate import interp1d
+
+
+
 
 
 #I know global variables are evil, but these are constants which i really want to keep consistent
 mu = electron_mass*c*c/electron_volt
 ro = physical_constants['classical electron radius'][0]
 
+
+class interpolator(dict):
+    def __init__(self, inFN):
+        self.inFN = inFN
+        data = np.loadtxt(inFN, skiprows=1, delimiter=',')
+        keys = map(int, open(inFN).readline().strip().split(',')[1:])
+        for k,v in zip(keys,data[:,1:].T):
+            self[k] = interp1d(data[:,0], v, kind='quadratic')
+
+scatteringfunction = interpolator('scatteringfunction.txt')
+formfactor         = interpolator('formfactor.txt')
+
+    
 
 
 def transform_spherical(x, y, z, xpos=None, ypos=None):
@@ -34,7 +51,8 @@ def transform_spherical(x, y, z, xpos=None, ypos=None):
     xpos = xpos or 0.
     ypos = ypos or 0.
     theta = np.pi - np.arctan(np.sqrt(np.square(x - xpos) + np.square(y - ypos))/z)
-    phi = np.arctan((y-ypos) / (x - xpos))
+    #phi = np.arctan((y-ypos) / (x - xpos))
+    phi = np.arctan((x-xpos) / (y - ypos))
     return theta, phi
 
 def compton(theta, phi, ko, Z=None):
@@ -56,8 +74,12 @@ def compton(theta, phi, ko, Z=None):
         The differential scattering element for a given phi and theta
     """
     k = ko*mu / (mu + ko*(1 - np.cos(theta)))
-    compton = 0.5*ro*ro*np.square(k/ko)*(k/ko + ko/k - 2.*np.square(np.sin(theta)*np.cos(phi)))
-    return compton 
+    c = 0.5*ro*ro*np.square(k/ko)*(k/ko + ko/k - 2.*np.square(np.sin(theta)*np.cos(phi)))
+    if Z is not None:
+        wavelength = Planck*speed_of_light/(ko*electron_volt)*1e10
+        x = np.sin(theta/2.)/wavelength
+        c = c*scatteringfunction[Z](theta)
+    return c
 
 
 
@@ -79,8 +101,12 @@ def thompson(theta, phi, ko, Z=None):
     d : float or array
         The differential scattering element for a given phi and theta
     """
-    thompson= ro*ro*(1. - np.square(np.sin(theta)*np.cos(phi)))
-    return thompson
+    t = ro*ro*(1. - np.square(np.sin(theta)*np.cos(phi)))
+    if Z is not None:
+        wavelength = Planck*speed_of_light/(ko*electron_volt)*1e10
+        x = np.sin(theta/2.)/wavelength
+        t = t*np.square(formfactor[Z](theta))
+    return t
 
 
 
