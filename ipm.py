@@ -8,13 +8,16 @@ import matplotlib as mpl
 from matplotlib import pyplot as plt
 
 
-#Panel dimensions (xmin, xmax, ymin, ymax)
+#Panel dimensions in mm (xmin, xmax, ymin, ymax) 
 panels = {
-    'T': (-5., 5., 5., 15.),
-    'R': (5., 15., -5., 5.),
-    'B': (-5., 5., -5., -15.),
-    'L': (-5., -15., -5., 5.),
+    'T': (-5., 5., 10., 20.),
+    'R': (10., 20., -5., 5.),
+    'B': (-5., 5., -10., -20.),
+    'L': (-10., -20., -5., 5.),
 }
+
+#Distance from the diode array center to the Si3N4 film in mm
+film_distance = 20.
 
 
 def mesh2d(bounds, points):
@@ -49,11 +52,12 @@ def plot_detector(readings, cmap=None, xpos=None, ypos=None):
     plt.colorbar(label=r"$\frac{d\sigma }{d\Omega }\ (barn\ sr^{-1}\ atom^{-1})$")
     if xpos is not None:
         plt.scatter(xpos, ypos, edgecolors='w', facecolors='none')
-    plt.xlabel('cm')
-    plt.ylabel('cm')
+    plt.xlabel('mm')
+    plt.ylabel('mm')
     plt.show()
 
-def differential_scattering(l, ko, Z=None, points=None, xpos=None, ypos=None):
+def differential_scattering(ko, l=None, Z=None, points=None, xpos=None, ypos=None):
+    l = film_distance if l is None else l
     points = points or 100
     readings = {}
     for k,v in panels.items():
@@ -62,7 +66,8 @@ def differential_scattering(l, ko, Z=None, points=None, xpos=None, ypos=None):
         readings[k] = scatter.differential_intensity(theta, phi, ko, Z)
     return readings
 
-def differential_compton_scattering(l, ko, Z=None, points=None, xpos=None, ypos=None):
+def differential_compton_scattering(ko, l=None, Z=None, points=None, xpos=None, ypos=None):
+    l = film_distance if l is None else l
     points = points or 100
     readings = {}
     for k,v in panels.items():
@@ -71,7 +76,8 @@ def differential_compton_scattering(l, ko, Z=None, points=None, xpos=None, ypos=
         readings[k] = scatter.compton(theta, phi, ko, Z)
     return readings
 
-def differential_thompson_scattering(l, ko, Z=None, points=None, xpos=None, ypos=None):
+def differential_thompson_scattering(ko, l=None, Z=None, points=None, xpos=None, ypos=None):
+    l = film_distance if l is None else l
     points = points or 100
     readings = {}
     for k,v in panels.items():
@@ -79,3 +85,24 @@ def differential_thompson_scattering(l, ko, Z=None, points=None, xpos=None, ypos
         theta,phi = scatter.transform_spherical(x, y, l, xpos, ypos)
         readings[k] = scatter.thompson(theta, phi, ko, Z)
     return readings
+
+def ipm_readings(ko, xpos, ypos, l=None, points = None, keys = None):
+    """
+    make up some ipm readings to go with a given photon energy and beam position. 
+
+    Parameters
+    ----------
+    ko : float
+        photon energy in electron volts
+    xpos : float
+        beam x-position in microns
+    ypos : float
+        beam y-position in microns
+    """
+    xpos,ypos = 1000.*xpos,1000.*ypos
+    l = film_distance if l is None else l
+    keys = keys or ['T', 'R', 'B', 'L']
+    si = {k:v.sum() for k,v in differential_scattering(ko, l, 14, points, xpos, ypos).items()}
+    n  = {k:v.sum() for k,v in differential_scattering(ko, l, 7 , points, xpos, ypos).items()}
+    t  = {k:3.*si[k]/7. + 4.*n[k]/7. for k in si}
+    return np.array([t[k] for k in keys])

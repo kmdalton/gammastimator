@@ -27,10 +27,19 @@ argDict = {
     "--partialitymin"          : "Minimum partiality of reflections",
     "--sigInoise"              : "Fractional error. SigI=error*I + u",
     "--runlength"              : "Approximate number of phi angles per crystal",
+
+    #Beam geometry parameters
     "--sigx"                   : "Variance in x pos in 'microns'",
     "--sigy"                   : "Variance in y pos in 'microns'",
     "--divx"                   : "Beam x divergence in 'microns'",
     "--divy"                   : "Beam y divergence in 'microns'",
+
+    #Crystal dimensions and alignment parameters
+    "--sigheight"              : "Variance of crystal dimension in microns",
+    "--sigwidth"               : "Variance of crystal dimension in microns",
+    "--height"                 : "Mean of crystal dimension in microns",
+    "--width"                  : "Mean of crystal dimension in microns",
+    "--sigalign"               : "Variance of crystal alignment dimension in microns",
 }
 
 datatypes = {
@@ -55,10 +64,19 @@ datatypes = {
     "--partialitymin"          : float,
     "--sigInoise"              : float,
     "--runlength"              : int,
+
+    #Beam geometry parameters
     "--sigx"                   : float,
     "--sigy"                   : float,
     "--divx"                   : float,
     "--divy"                   : float,
+
+    #Crystal dimensions and alignment parameters
+    "--sigheight"              : float,
+    "--sigwidth"               : float,
+    "--height"                 : float,
+    "--width"                  : float,
+    "--sigalign"               : float,
 }
 
 defaults = {
@@ -83,10 +101,19 @@ defaults = {
     "--partialitymin"          : 0.1, 
     "--sigInoise"              : 0.03,
     "--runlength"              : 50, 
+
+    #Beam geometry parameters
     "--sigx"                   : 10.,
     "--sigy"                   : 5.,
     "--divx"                   : 50.,
     "--divy"                   : 100.,
+
+    #Crystal dimensions and alignment parameters
+    "--sigheight"              : 10.,
+    "--sigwidth"               : 10.,
+    "--height"                 : 100.,
+    "--width"                  : 100.,
+    "--sigalign"               : 10.,
 }
 
 def parsehkl(inFN):
@@ -99,21 +126,6 @@ def parsehkl(inFN):
     )
     return F
 
-
-offFN = '1ubq.pdb.hkl'
-onFN  = '1ubq-flip.pdb.hkl'
-
-
-Foff = parsehkl(offFN)
-Fon  = parsehkl(onFN)
-
-
-def get_ipm_readings(**kw):
-    I = np.random.normal(kw.get('intensityloc', 0.2), kw.get('intensityshape', 2.))
-
-    sigx = kw.get('sigx', 10.)
-    sigy = kw.get('sigy', 5.)
-    model.loc[model['IMAGENUMBER'].isin(run), 'BEAMX'] = np.random.normal(0, sigx)
 
 def build_model(offFN, onFN, **kw):
     Fon,Foff = parsehkl(onFN),parsehkl(offFN)
@@ -152,20 +164,60 @@ def build_model(offFN, onFN, **kw):
             ct = len(images)
         runs.append([images.pop(0) for i in range(ct)])
 
-    sigx = kw.get("sigx", 10.)
-    sigy = kw.get("sigy", 10.)
+    #Crystal orientation
+    sigalign = kw.get("sigalign", 10.)
+
+    #Crystal dimensions 
+    height = kw.get("height", 50.)
+    width  = kw.get("width", 100.)
+    sigh   = kw.get("sigheight", 10.)
+    sigw   = kw.get("sigwidth", 10.)
 
     model['RUN'] = 0
     for n,run in enumerate(runs, 1):
-        model.loc[model['IMAGENUMBER'].isin(run), 'CRYSTX'] = np.random.normal(0, sigx)
-        model.loc[model['IMAGENUMBER'].isin(run), 'CRYSTY'] = np.random.normal(0, sigy)
+        x = np.random.normal(0., sigalign)
+        y = np.random.normal(0., sigalign)
+        h = np.random.normal(height, sigh)
+        w = np.random.normal(width , sigw)
+        model.loc[model['IMAGENUMBER'].isin(run), 'RUN'] = n
+        model.loc[model['IMAGENUMBER'].isin(run), 'CRYSTBOTTOM'] = y - h/2.
+        model.loc[model['IMAGENUMBER'].isin(run), 'CRYSTTOP']    = y + h/2.
+        model.loc[model['IMAGENUMBER'].isin(run), 'CRYSTLEFT']   = x - w/2.
+        model.loc[model['IMAGENUMBER'].isin(run), 'CRYSTRIGHT']  = x + w/2.
 
     partiality = np.random.normal(kw.get("partialitymean", 0.6), kw.get("partialitystd", 0.2), len(model))
     partiality = np.minimum(partiality, 1.)
     partiality = np.maximum(partiality, kw.get("partialitymin", 0.1))
     model['P'] = partiality
     I = None
+    sigx,sigy = kw.get('sigx', 10.),kw.get('sigy', 5.)
+
+    pd.concat((model
+
+    model['SERIES'] = 'off1'
+    for i in range(kw.get('offreps', 4)-1):
+        m = model.copy()
+        m['SERIES'] = 'off{}'.format(i+2)
+        model = pd.concat((model, m))
+
+    for i in range(kw.get('onreps', 4)):
+        m = model.copy()
+        m['SERIES'] = 'on{}'.format(i+1)
+        model = pd.concat((model, m))
+
+    model['BEAMX'],model['BEAMY'],model['Io'] = 0.,0.,0.
+    model['BEAMX'] = model.groupby(['RUN', 'IMAGENUMBER', 'SERIES']).transform(lambda x: np.random.normal(0., sigx))
+    model['BEAMY'] = model.groupby(['RUN', 'IMAGENUMBER', 'SERIES']).transform(lambda x: np.random.normal(0., sigy))
+    model['Io'] = model.groupby(['RUN', 'IMAGENUMBER', 'SERIES']).transform(lambda x: np.random.normal(0., sigy))
+         np.random.gamma(kw.get('intensityloc', 0.2), kw.get('intensityshape', 2.0), len(iobs))
+#TODO: Finish populating this using the above tranform syntax
+    #what do we still need?
+#Io,IPM
+    return model.sample(frac = 1. - kw.get('missing', 0.), replace=False)
+
+"""
     for i in range(kw.get("onreps", 4)):
+        
         iobs = model.copy()
         model.loc[model['IMAGENUMBER'].isin(run), 'BEAMX'] = np.random.normal(0, sigx)
         model.loc[model['IMAGENUMBER'].isin(run), 'BEAMY'] = np.random.normal(0, sigy)
@@ -184,7 +236,7 @@ def build_model(offFN, onFN, **kw):
         iobs['SIGMA(IOBS)'] = kw.get("sigintercept", 5.0) + kw.get("sigslope", 0.03)*iobs['IOBS']
         iobs['IOBS'] = [np.random.normal(i, j) for i,j in zip(iobs['IOBS'], iobs['SIGMA(IOBS)'])]
         I = pd.concat((I, iobs))
-
+"""
     return I.sample(frac = 1. - kw.get('missing', 0.), replace=False)
 
 

@@ -51,10 +51,10 @@ def transform_spherical(x, y, z, xpos=None, ypos=None):
     xpos = 0. if xpos is None else xpos
     ypos = 0. if ypos is None else ypos
     theta = np.pi - np.arctan(np.sqrt(np.square(x - xpos) + np.square(y - ypos))/z)
-    #Polarization along X
-    phi = np.arctan2(x-xpos , y - ypos)
     #Polarization along Y
-    #phi = np.arctan2(y-ypos , x - xpos)
+    #phi = np.arctan2(x-xpos , y - ypos)
+    #Polarization along X
+    phi = np.arctan2(y-ypos , x - xpos)
     return theta, phi
 
 def compton(theta, phi, ko, Z=None):
