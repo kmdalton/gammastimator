@@ -1,6 +1,3 @@
-"""
-Simulate IPM detector readings
-"""
 
 import scatter
 import numpy as np
@@ -10,10 +7,10 @@ from matplotlib import pyplot as plt
 
 #Panel dimensions in mm (xmin, xmax, ymin, ymax) 
 panels = {
-    'T': (-5., 5., 10., 20.),
-    'R': (10., 20., -5., 5.),
-    'B': (-5., 5., -10., -20.),
-    'L': (-10., -20., -5., 5.),
+    'T': (-5., 5., 5., 15.),
+    'R': (5., 15., -5., 5.),
+    'B': (-5., 5., -5., -15.),
+    'L': (-5., -15., -5., 5.),
 }
 
 #Distance from the diode array center to the Si3N4 film in mm
@@ -25,14 +22,15 @@ def mesh2d(bounds, points):
     
 
 
-def plot_detector(readings, cmap=None, xpos=None, ypos=None):
+def plot_detector(readings, cmap=None, xpos=None, ypos=None, ax=None, norm=None):
     """
     Parameters
     ----------
     readings : dict
         dictionary containing the names of panels and their respective readings
     """
-    cmap = cmap or plt.get_cmap('viridis')
+    ax = ax if ax is not None else plt.gca()
+    cmap = cmap if cmap is not None else plt.get_cmap('viridis')
     X,Y,Z = [],[],[]
     for k,v in readings.items():
         x = np.linspace(panels[k][0], panels[k][1], v.shape[0])
@@ -41,20 +39,23 @@ def plot_detector(readings, cmap=None, xpos=None, ypos=None):
         X = np.concatenate((X, x.flatten()))
         Y = np.concatenate((Y, y.flatten()))
         Z = np.concatenate((Z, v.flatten()))
-    plt.hexbin(X, Y, Z*1e28, cmap=cmap)
-    ax = plt.gca()
+    Z = Z*1e28 #Barns
+    norm = norm if norm is not None else mpl.colors.Normalize(Z.min(), Z.max())
+    ax.hexbin(X, Y, Z, cmap=cmap, norm=norm)
     ax.set_facecolor(cmap(0.))
     for k,v in panels.items():
-        plt.plot(v[:2], [v[2], v[2]], lw=3, c='w')
-        plt.plot(v[:2], [v[3], v[3]], lw=3, c='w')
-        plt.plot([v[0], v[0]], v[2:], lw=3, c='w')
-        plt.plot([v[1], v[1]], v[2:], lw=3, c='w')
-    plt.colorbar(label=r"$\frac{d\sigma }{d\Omega }\ (barn\ sr^{-1}\ atom^{-1})$")
+        ax.plot(v[:2], [v[2], v[2]], lw=3, c='w')
+        ax.plot(v[:2], [v[3], v[3]], lw=3, c='w')
+        ax.plot([v[0], v[0]], v[2:], lw=3, c='w')
+        ax.plot([v[1], v[1]], v[2:], lw=3, c='w')
+    sm = mpl.cm.ScalarMappable(norm, cmap)
+    sm.set_array(Z)
+    plt.colorbar(sm, ax=ax, label=r"$\frac{d\sigma }{d\Omega }\ (barn\ sr^{-1}\ atom^{-1})$")
     if xpos is not None:
-        plt.scatter(xpos, ypos, edgecolors='w', facecolors='none')
-    plt.xlabel('mm')
-    plt.ylabel('mm')
-    plt.show()
+        ax.scatter(xpos, ypos, edgecolors='w', facecolors='none')
+    ax.set_xlabel('mm')
+    ax.set_ylabel('mm')
+    return ax
 
 def differential_scattering(ko, l=None, Z=None, points=None, xpos=None, ypos=None):
     l = film_distance if l is None else l
