@@ -15,7 +15,7 @@
    version="1.1"
    id="svg8"
    inkscape:version="0.92.3 (unknown)"
-   sodipodi:docname="3.svg">
+   sodipodi:docname="phi.svg">
   <defs
      id="defs2">
     <marker
@@ -248,23 +248,25 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="1.979899"
-     inkscape:cx="483.23084"
-     inkscape:cy="813.23384"
+     inkscape:zoom="2.8"
+     inkscape:cx="373.44547"
+     inkscape:cy="946.66551"
      inkscape:document-units="mm"
      inkscape:current-layer="layer1"
      showgrid="false"
      inkscape:window-width="1920"
-     inkscape:window-height="1040"
-     inkscape:window-x="1920"
-     inkscape:window-y="1092"
+     inkscape:window-height="2108"
+     inkscape:window-x="0"
+     inkscape:window-y="24"
      inkscape:window-maximized="0"
      inkscape:snap-bbox="true"
      inkscape:snap-smooth-nodes="true"
      inkscape:snap-object-midpoints="true"
      inkscape:snap-center="false"
      inkscape:snap-intersection-paths="true"
-     inkscape:object-paths="true" />
+     inkscape:object-paths="true"
+     showguides="true"
+     inkscape:guide-bbox="true" />
   <metadata
      id="metadata5">
     <rdf:RDF>
@@ -281,6 +283,20 @@
      inkscape:label="Layer 1"
      inkscape:groupmode="layer"
      id="layer1">
+    <rect
+       style="opacity:1;fill:#b3b3b3;fill-opacity:1;stroke:#000000;stroke-width:0.36500001;stroke-miterlimit:4;stroke-dasharray:none"
+       id="rect987"
+       width="30.427082"
+       height="15.213554"
+       x="53.189674"
+       y="82.27951" />
+    <rect
+       y="82.27951"
+       x="114.77384"
+       height="15.213554"
+       width="30.427082"
+       id="rect985"
+       style="opacity:1;fill:#b3b3b3;fill-opacity:1;stroke:#000000;stroke-width:0.36500001;stroke-miterlimit:4;stroke-dasharray:none" />
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;font-size:7.05555534px;line-height:12.51034069px;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
@@ -316,12 +332,6 @@
        d="M 154.05237,97.493063 H 44.338229"
        id="path7450"
        inkscape:connector-curvature="0" />
-    <path
-       inkscape:connector-curvature="0"
-       id="path7452"
-       d="m 92.270819,97.493063 v -6.84222 h 6.96571"
-       style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-       sodipodi:nodetypes="ccc" />
     <text
        id="text7456"
        y="99.203461"
@@ -344,34 +354,12 @@
          x="97.081673"
          y="40.871887"
          style="font-style:italic;stroke-width:0.26458332px">y</tspan></text>
-    <text
-       id="text7464"
-       y="99.605988"
-       x="89.184273"
-       style="font-style:normal;font-weight:normal;font-size:2.26632977px;line-height:4.01847267px;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-       xml:space="preserve"><tspan
-         style="font-style:italic;stroke-width:0.26458332px"
-         y="99.605988"
-         x="89.184273"
-         id="tspan7462"
-         sodipodi:role="line">Xpos</tspan></text>
     <path
        sodipodi:nodetypes="cc"
        style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.26499999;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-start:url(#marker7476)"
        d="M 109.82188,67.028463 92.254099,90.584013"
        id="path7472"
        inkscape:connector-curvature="0" />
-    <text
-       xml:space="preserve"
-       style="font-style:normal;font-weight:normal;font-size:2.26632977px;line-height:4.01847267px;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-       x="99.591469"
-       y="91.274323"
-       id="text9581"><tspan
-         sodipodi:role="line"
-         id="tspan9579"
-         x="99.591469"
-         y="91.274323"
-         style="font-style:italic;stroke-width:0.26458332px">Ypos</tspan></text>
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;font-size:2.26632977px;line-height:4.01847267px;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
@@ -397,23 +385,6 @@
        sodipodi:open="true"
        d="m 127.97128,14.074395 a 4.8406372,4.8406372 0 0 1 3.94321,2.049251" />
     <path
-       inkscape:connector-curvature="0"
-       id="path9639"
-       d="m 110.10015,66.655303 v 30.82106"
-       style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.26499999;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
-       sodipodi:nodetypes="cc" />
-    <text
-       xml:space="preserve"
-       style="font-style:normal;font-weight:normal;font-size:2.26632977px;line-height:4.01847267px;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-       x="102.16718"
-       y="99.605988"
-       id="text9643"><tspan
-         sodipodi:role="line"
-         x="102.16718"
-         y="99.605988"
-         style="font-style:italic;stroke-width:0.26458332px"
-         id="tspan9673">X =l sin(π-θ)cos(φ)+Xpos </tspan></text>
-    <path
        style="opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.26499999;stroke-miterlimit:4;stroke-dasharray:0.26499999, 0.26499999;stroke-dashoffset:0"
        id="path9649"
        sodipodi:type="arc"
@@ -436,29 +407,53 @@
          x="61.388245"
          y="99.940094"
          style="font-style:italic;stroke-width:0.26458332px">R = l sin(π-θ)</tspan></text>
-    <rect
-       style="opacity:1;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:0.26499999;stroke-miterlimit:4;stroke-dasharray:0.26499998, 0.26499998;stroke-dashoffset:0"
-       id="rect9687"
-       width="28.421137"
-       height="2.8348215"
-       x="70.256325"
-       y="65.442352" />
-    <text
-       id="text9683"
-       y="67.477997"
-       x="70.511681"
-       style="font-style:normal;font-weight:normal;font-size:2.26632977px;line-height:4.01847267px;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-       xml:space="preserve"><tspan
-         id="tspan9681"
-         style="font-style:italic;stroke-width:0.26458332px"
-         y="67.477997"
-         x="70.511681"
-         sodipodi:role="line">Y =l sin(π-θ)sin(φ)+Ypos </tspan></text>
     <path
-       sodipodi:nodetypes="cc"
-       style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.26499999;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
-       d="M 99.212002,66.776143 H 110.10015"
-       id="path9685"
+       style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 92.27082,90.650847 h 17.55106"
+       id="path984"
        inkscape:connector-curvature="0" />
+    <path
+       style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="M 109.82188,90.650845 V 67.028461"
+       id="path988"
+       inkscape:connector-curvature="0" />
+    <rect
+       y="108.2865"
+       x="-85.994614"
+       height="3.0707641"
+       width="9.3343716"
+       id="rect992"
+       style="opacity:1;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:0.56499994;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       transform="rotate(-90)" />
+    <text
+       id="text7464"
+       y="110.7132"
+       x="-85.865288"
+       style="font-style:normal;font-weight:normal;font-size:2.26632977px;line-height:4.01847267px;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       xml:space="preserve"
+       transform="rotate(-90)"><tspan
+         style="font-style:italic;stroke-width:0.26458332px"
+         y="110.7132"
+         x="-85.865288"
+         id="tspan7462"
+         sodipodi:role="line">Y - Ypos</tspan></text>
+    <rect
+       style="opacity:1;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:0.56499994;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       id="rect990"
+       width="9.7047329"
+       height="2.5628579"
+       x="97.872368"
+       y="89.369415" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:2.26632977px;line-height:4.01847267px;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       x="98.173195"
+       y="91.335953"
+       id="text9581"><tspan
+         sodipodi:role="line"
+         id="tspan9579"
+         x="98.173195"
+         y="91.335953"
+         style="font-style:italic;stroke-width:0.26458332px">X - Xpos</tspan></text>
   </g>
 </svg>

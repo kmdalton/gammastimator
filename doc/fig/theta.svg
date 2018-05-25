@@ -15,7 +15,7 @@
    version="1.1"
    id="svg8"
    inkscape:version="0.92.3 (unknown)"
-   sodipodi:docname="2.svg">
+   sodipodi:docname="theta.svg">
   <defs
      id="defs2">
     <marker
@@ -313,9 +313,9 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="3.959798"
-     inkscape:cx="288.10345"
-     inkscape:cy="855.5275"
+     inkscape:zoom="1.4"
+     inkscape:cx="316.17764"
+     inkscape:cy="690.19646"
      inkscape:document-units="mm"
      inkscape:current-layer="layer1"
      showgrid="false"
@@ -346,6 +346,11 @@
      inkscape:label="Layer 1"
      inkscape:groupmode="layer"
      id="layer1">
+    <path
+       style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.26499999;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-start:url(#Arrow1Lstart-3);marker-end:url(#Arrow1Lend-6)"
+       d="M 145.83808,48.594685 V 158.30882"
+       id="path843-8"
+       inkscape:connector-curvature="0" />
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;font-size:7.05555534px;line-height:12.51034069px;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
@@ -379,11 +384,6 @@
          x="100.45596"
          y="148.5815"
          style="stroke-width:0.26458332px">B</tspan></text>
-    <path
-       style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.26499999;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-start:url(#Arrow1Lstart-3);marker-end:url(#Arrow1Lend-6)"
-       d="M 99.412592,48.594685 V 158.30882"
-       id="path843-8"
-       inkscape:connector-curvature="0" />
     <rect
        style="opacity:1;fill:#b3b3b3;fill-opacity:1;stroke:#000000;stroke-width:0.36500004;stroke-miterlimit:4;stroke-dasharray:none"
        id="rect819-2"
@@ -410,12 +410,12 @@
     <text
        id="text1251-2"
        y="46.83057"
-       x="97.298965"
+       x="144.12535"
        style="font-style:normal;font-weight:normal;font-size:7.05555534px;line-height:12.51034069px;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
        xml:space="preserve"><tspan
          style="font-style:italic;stroke-width:0.26458332px"
          y="46.83057"
-         x="97.298965"
+         x="144.12535"
          id="tspan1249-3"
          sodipodi:role="line">y</tspan></text>
     <text
@@ -453,13 +453,13 @@
    id="tspan2118">4</tspan></tspan></text>
     <text
        id="text2126"
-       y="121.63591"
-       x="143.95064"
+       y="156.78769"
+       x="94.057777"
        style="font-style:normal;font-weight:normal;font-size:2.26632977px;line-height:4.01847267px;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
        xml:space="preserve"><tspan
-         style="font-style:italic;stroke-width:0.26458332px"
-         y="121.63591"
-         x="143.95064"
+         style="font-style:italic;font-size:6.3499999px;stroke-width:0.26458332px"
+         y="156.78769"
+         x="94.057777"
          id="tspan2124"
          sodipodi:role="line">z=l</tspan></text>
     <path
@@ -478,7 +478,7 @@
          y="95.887085"
          x="136.97292"
          id="tspan3678"
-         sodipodi:role="line">π-θ</tspan></text>
+         sodipodi:role="line">θ</tspan></text>
     <path
        style="opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.26499999;stroke-miterlimit:4;stroke-dasharray:none"
        id="path3682"
@@ -502,7 +502,7 @@
          y="72.873734"
          x="74.071404"
          id="tspan3684"
-         sodipodi:role="line">Y = l sin(π-θ) + Ypos</tspan></text>
+         sodipodi:role="line">Y = l sinθ + Ypos</tspan></text>
     <path
        style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-mid:url(#marker4468)"
        d="M 154.24372,96.528995 H 101.4391 50.723547"

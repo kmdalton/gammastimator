@@ -5,16 +5,16 @@ import matplotlib as mpl
 from matplotlib import pyplot as plt
 
 
-#Panel dimensions in mm (xmin, xmax, ymin, ymax) 
+#Panel dimensions in um (xmin, xmax, ymin, ymax) 
 panels = {
-    'T': (-5., 5., 5., 15.),
-    'R': (5., 15., -5., 5.),
-    'B': (-5., 5., -5., -15.),
-    'L': (-5., -15., -5., 5.),
+    'T': (-5000., 5000., 5000., 15000.),
+    'R': (5000., 15000., -5000., 5000.),
+    'B': (-5000., 5000., -5000., -15000.),
+    'L': (-5000., -15000., -5000., 5000.),
 }
 
-#Distance from the diode array center to the Si3N4 film in mm
-film_distance = 20.
+#Distance from the diode array center to the Si3N4 film in um
+film_distance = -10000.
 
 
 def mesh2d(bounds, points):
@@ -53,8 +53,8 @@ def plot_detector(readings, cmap=None, xpos=None, ypos=None, ax=None, norm=None)
     plt.colorbar(sm, ax=ax, label=r"$\frac{d\sigma }{d\Omega }\ (barn\ sr^{-1}\ atom^{-1})$")
     if xpos is not None:
         ax.scatter(xpos, ypos, edgecolors='w', facecolors='none')
-    ax.set_xlabel('mm')
-    ax.set_ylabel('mm')
+    ax.set_xlabel(r'$\mu m$')
+    ax.set_ylabel(r'$\mu m$')
     return ax
 
 def differential_scattering(ko, l=None, Z=None, points=None, xpos=None, ypos=None):
@@ -100,7 +100,7 @@ def ipm_readings(ko, xpos, ypos, l=None, points = None, keys = None):
     ypos : float
         beam y-position in microns
     """
-    xpos,ypos = 1000.*xpos,1000.*ypos
+    xpos,ypos = xpos,ypos
     l = film_distance if l is None else l
     keys = keys or ['T', 'R', 'B', 'L']
     si = {k:v.sum() for k,v in differential_scattering(ko, l, 14, points, xpos, ypos).items()}

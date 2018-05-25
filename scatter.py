@@ -90,7 +90,7 @@ def compton(theta, phi, ko, Z=None):
     c = 0.25*ro*ro*np.square(k/ko)*(k/ko + ko/k - 2.*np.square(np.sin(theta)*np.cos(phi)))
     if Z is not None:
         wavelength = Planck*speed_of_light/(ko*electron_volt)*1e10
-        x = np.sin(theta/2.)/wavelength
+        x = np.sin((np.pi - theta)/2.)/wavelength
         c = c*scatteringfunction[Z](x)
     return c
 
@@ -117,7 +117,7 @@ def thompson(theta, phi, ko, Z=None):
     t = ro*ro*(1. - np.square(np.sin(theta)*np.cos(phi)))
     if Z is not None:
         wavelength = Planck*speed_of_light/(ko*electron_volt)*1e10
-        x = np.sin(theta/2.)/wavelength
+        x = np.sin((np.pi - theta)/2.)/wavelength
         t = t*np.square(formfactor[Z](x))
     return t
 
