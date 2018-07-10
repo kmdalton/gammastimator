@@ -1,4 +1,5 @@
 import argparse
+import ipm
 import numpy as np
 import pandas as pd
 
@@ -27,6 +28,7 @@ argDict = {
     "--partialitymin"          : "Minimum partiality of reflections",
     "--sigInoise"              : "Fractional error. SigI=error*I + u",
     "--runlength"              : "Approximate number of phi angles per crystal",
+    "--energy"                 : "X-Ray energy in electron volts",
 
     #Beam geometry parameters
     "--sigx"                   : "Variance in x pos in 'microns'",
@@ -64,6 +66,7 @@ datatypes = {
     "--partialitymin"          : float,
     "--sigInoise"              : float,
     "--runlength"              : int,
+    "--energy"                 : float,
 
     #Beam geometry parameters
     "--sigx"                   : float,
@@ -101,6 +104,7 @@ defaults = {
     "--partialitymin"          : 0.1, 
     "--sigInoise"              : 0.03,
     "--runlength"              : 50, 
+    "--energy"                 : 10000., 
 
     #Beam geometry parameters
     "--sigx"                   : 10.,
@@ -192,7 +196,7 @@ def build_model(offFN, onFN, **kw):
     I = None
     sigx,sigy = kw.get('sigx', 10.),kw.get('sigy', 5.)
 
-    pd.concat((model
+    #pd.concat((model
 
     model['SERIES'] = 'off1'
     for i in range(kw.get('offreps', 4)-1):
@@ -205,12 +209,26 @@ def build_model(offFN, onFN, **kw):
         m['SERIES'] = 'on{}'.format(i+1)
         model = pd.concat((model, m))
 
+    nshots = len(model.groupby(['RUN', 'IMAGENUMBER', 'SERIES']))
+    x,y = np.random.normal(0., sigx, (2, nshots))
+    ipm_channels = np.vstack((ipm.ipm_readings(kw.get('energy', 10000.), i,j) for i,j in zip(x,y)))
+    #Normalize and split channels
+    ipm_0, ipm_1, ipm_2, ipm_3 = ipm_channels.T/ipm_channels.sum(1)
+
     model['BEAMX'],model['BEAMY'],model['Io'] = 0.,0.,0.
     model['BEAMX'] = model.groupby(['RUN', 'IMAGENUMBER', 'SERIES']).transform(lambda x: np.random.normal(0., sigx))
     model['BEAMY'] = model.groupby(['RUN', 'IMAGENUMBER', 'SERIES']).transform(lambda x: np.random.normal(0., sigy))
-    model['Io'] = model.groupby(['RUN', 'IMAGENUMBER', 'SERIES']).transform(lambda x: np.random.normal(0., sigy))
-         np.random.gamma(kw.get('intensityloc', 0.2), kw.get('intensityshape', 2.0), len(iobs))
-#TODO: Finish populating this using the above tranform syntax
+    model['Io']    = model.groupby(['RUN', 'IMAGENUMBER', 'SERIES']).transform(lambda x: np.random.gamma(
+        kw.get('intensityloc', 0.2), 
+        kw.get('intensityshape', 2.0)
+        )
+    )
+
+    i = ipm.ipm_readings(kw.get('energy', 10000.), x, y) for x,y in zip(model['BEAMX'], model['BEAMY']))
+#    model['ipm2_xpos'],
+#    model['ipm2_ypos']
+#    )
+#TODO: Finish populating this using the above transform syntax
     #what do we still need?
 #Io,IPM
     return model.sample(frac = 1. - kw.get('missing', 0.), replace=False)
@@ -237,7 +255,7 @@ def build_model(offFN, onFN, **kw):
         iobs['IOBS'] = [np.random.normal(i, j) for i,j in zip(iobs['IOBS'], iobs['SIGMA(IOBS)'])]
         I = pd.concat((I, iobs))
 """
-    return I.sample(frac = 1. - kw.get('missing', 0.), replace=False)
+    #return I.sample(frac = 1. - kw.get('missing', 0.), replace=False)
 
 
 
