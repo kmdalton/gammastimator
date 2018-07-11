@@ -78,7 +78,7 @@ def differential_compton_scattering(ko, l=None, Z=None, points=None, xpos=None, 
         readings[k] = scatter.compton(theta, phi, ko, Z)
     return readings
 
-def differential_thompson_scattering(ko, l=None, Z=None, points=None, xpos=None, ypos=None):
+def differential_thomson_scattering(ko, l=None, Z=None, points=None, xpos=None, ypos=None):
     l = film_distance if l is None else l
     points = 100 if points is None else points
     readings = {}
@@ -87,7 +87,7 @@ def differential_thompson_scattering(ko, l=None, Z=None, points=None, xpos=None,
         x = x if xpos is None else x-xpos
         y = y if ypos is None else y-ypos
         theta,phi = scatter.transform_spherical(x, y, l)
-        readings[k] = scatter.thompson(theta, phi, ko, Z)
+        readings[k] = scatter.thomson(theta, phi, ko, Z)
     return readings
 
 def ipm_readings(ko, xpos, ypos, l=None, points=None, keys=None):
@@ -122,6 +122,7 @@ def transform_cartesian(theta, phi, l=None):
     return x,y
 
 def integrate_panel(ko, bounds, l=None, Z=None, points=None):
+    xmin,xmax,ymin,ymax = bounds
     border = 0.1 #add a border around the area to integrate
     l = film_distance if l is None else l
     points = 100 if points is None else points
@@ -135,7 +136,18 @@ def integrate_panel(ko, bounds, l=None, Z=None, points=None):
     #Subsample points compute integration parameters
     #dtheta,dphi = (thetamax - thetamin)/float(points), 2*np.pi/float(points)
     #theta = np.linspace(0., thetamax-thetamin, points)+thetamin
-    phi = np.linspace(-np.pi, np.pi, points)
+    vertices = np.array([
+        np.arctan2(ymin, xmin),
+        np.arctan2(ymin, xmax),
+        np.arctan2(ymax, xmax),
+        np.arctan2(ymax, xmin)
+        ])
+    if vertices.max() - vertices.min() > np.pi:
+        vertices[vertices < 0.] += 2*np.pi
+    phimin,phimax = vertices.min(),vertices.max()
+    phimin = phimin - 0.1*(phimax - phimin)
+    phimax = phimax + 0.1*(phimax - phimin)
+    phi = np.linspace(phimin, phimax, points)
     theta,phi = np.meshgrid(theta, phi)
     dtheta,dphi = np.pi/float(points), 2*np.pi/float(points)
     #print(bounds,theta,phi)
@@ -147,4 +159,4 @@ def integrate_panel(ko, bounds, l=None, Z=None, points=None):
         #d = scatter.differential_intensity(theta, phi, ko, Z)
         #return indicator#*d
     return np.sum(scatter.differential_intensity(theta,phi,ko,Z)*indicator(theta,phi)*np.sin(theta)*dtheta*dphi)
-    
+   # 
