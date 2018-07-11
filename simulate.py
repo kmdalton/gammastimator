@@ -1,4 +1,5 @@
 import argparse
+from scipy.special import erf
 import ipm
 import numpy as np
 import pandas as pd
@@ -109,8 +110,8 @@ defaults = {
     #Beam geometry parameters
     "--sigx"                   : 10.,
     "--sigy"                   : 5.,
-    "--divx"                   : 50.,
-    "--divy"                   : 100.,
+    "--divx"                   : 100.,
+    "--divy"                   : 50.,
 
     #Crystal dimensions and alignment parameters
     "--sigheight"              : 10.,
@@ -194,26 +195,76 @@ def build_model(offFN, onFN, **kw):
     partiality = np.maximum(partiality, kw.get("partialitymin", 0.1))
     model['P'] = partiality
     I = None
-    sigx,sigy = kw.get('sigx', 10.),kw.get('sigy', 5.)
 
     #pd.concat((model
 
     model['SERIES'] = 'off1'
+    m = model.copy()
     for i in range(kw.get('offreps', 4)-1):
-        m = model.copy()
-        m['SERIES'] = 'off{}'.format(i+2)
-        model = pd.concat((model, m))
+        n = m.copy()
+        n['SERIES'] = 'off{}'.format(i+2)
+        model = pd.concat((model, n))
 
     for i in range(kw.get('onreps', 4)):
-        m = model.copy()
-        m['SERIES'] = 'on{}'.format(i+1)
-        model = pd.concat((model, m))
+        n = m.copy()
+        n['SERIES'] = 'on{}'.format(i+1)
+        model = pd.concat((model, n))
 
+#Things we need to populate: Io, Icryst, BEAMX, BEAMY, IPM_0, IPM_1, IPM_2, IPM_3, IPM_X, IPM_Y
+#Note that Io == sum(IPM_0,1,2,3)
+    sigx,sigy = kw.get('sigx', 10.),kw.get('sigy', 5.)
+    divx,divy = kw.get('divx', 100.),kw.get('divy', 50.)
+    divx,divy = np.sqrt(2)*divx,np.sqrt(2)*divy
+
+    def shot(xmin, xmax, ymin, ymax):
+        Io = np.random.gamma(kw.get('intensityloc', 0.2), kw.get('intensityshape', 2.))
+        x,y = np.random.normal(0., sigx), np.random.normal(0., sigy)
+        Icryst = 0.25*Io*(erf((xmax - x)/divx) - erf((xmin - x)/divx) * (erf((ymax - y)/divy) - erf((ymin - y)/divy)))
+
+        ipm_channels = ipm.ipm_readings(kw.get('energy', 10000.), x, y, points=500)
+        ipm_0, ipm_1, ipm_2, ipm_3 = Io*ipm_channels/ipm_channels.sum()
+        ipm_x = (ipm_1 - ipm_3) / (ipm_1 + ipm_3)
+        ipm_y = (ipm_0 - ipm_2) / (ipm_0 + ipm_2)
+        return {
+            'BEAMX' : x, 
+            'BEAMY' : y, 
+            'Io'    : Io,
+            'Icryst': Icryst,
+            'IPM_0' : ipm_0, 
+            'IPM_1' : ipm_1, 
+            'IPM_2' : ipm_2, 
+            'IPM_3' : ipm_3, 
+            'IPM_X' : ipm_x,
+            'IPM_Y' : ipm_y,
+        }
+
+    keys = list(shot(0., 0., 0., 0.).keys())
+    for k in keys:
+        model[k] = 0.
+
+    g = model.groupby(['RUN', 'IMAGENUMBER', 'SERIES'])
+    for idx in g.groups.values():
+        xmin,xmax,ymin,ymax = model.loc[idx, ['CRYSTLEFT', 'CRYSTRIGHT', 'CRYSTBOTTOM', 'CRYSTTOP']].mean()
+        d = shot(xmin, xmax, ymin, ymax)
+        for k,v in d.items():
+            model.loc[idx, k] = v
+#    model['ipm2_xpos'],
+#    model['ipm2_ypos']
+#    )
+#TODO: Finish populating this using the above transform syntax
+    #what do we still need?
+#Io,IPM
+    return model.sample(frac = 1. - kw.get('missing', 0.), replace=False)
+
+
+def add_beam_data(model):
     nshots = len(model.groupby(['RUN', 'IMAGENUMBER', 'SERIES']))
     x,y = np.random.normal(0., sigx, (2, nshots))
     ipm_channels = np.vstack((ipm.ipm_readings(kw.get('energy', 10000.), i,j) for i,j in zip(x,y)))
     #Normalize and split channels
     ipm_0, ipm_1, ipm_2, ipm_3 = ipm_channels.T/ipm_channels.sum(1)
+    ipm_x = (ipm_1 - ipm_3) / (ipm_1 + ipm_3)
+    ipm_y = (ipm_0 - ipm_2) / (ipm_0 + ipm_2)
 
     model['BEAMX'],model['BEAMY'],model['Io'] = 0.,0.,0.
     model['BEAMX'] = model.groupby(['RUN', 'IMAGENUMBER', 'SERIES']).transform(lambda x: np.random.normal(0., sigx))
@@ -224,14 +275,7 @@ def build_model(offFN, onFN, **kw):
         )
     )
 
-    i = ipm.ipm_readings(kw.get('energy', 10000.), x, y) for x,y in zip(model['BEAMX'], model['BEAMY']))
-#    model['ipm2_xpos'],
-#    model['ipm2_ypos']
-#    )
-#TODO: Finish populating this using the above transform syntax
-    #what do we still need?
-#Io,IPM
-    return model.sample(frac = 1. - kw.get('missing', 0.), replace=False)
+    i = (ipm.ipm_readings(kw.get('energy', 10000.), x, y) for x,y in zip(model['BEAMX'], model['BEAMY']))
 
 """
     for i in range(kw.get("onreps", 4)):
