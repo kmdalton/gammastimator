@@ -133,30 +133,22 @@ def integrate_panel(ko, bounds, l=None, Z=None, points=None):
     thetarange = theta.max() - theta.min()
     theta = np.linspace(0.-thetarange*border, thetarange*(1.+border), points) + theta.min()
 
-    #Subsample points compute integration parameters
-    #dtheta,dphi = (thetamax - thetamin)/float(points), 2*np.pi/float(points)
-    #theta = np.linspace(0., thetamax-thetamin, points)+thetamin
-    vertices = np.array([
-        np.arctan2(ymin, xmin),
-        np.arctan2(ymin, xmax),
-        np.arctan2(ymax, xmax),
-        np.arctan2(ymax, xmin)
-        ])
+    vertices = np.arctan2([ymin, ymin, ymax, ymax], [xmin, xmax, xmin, xmax])
     if vertices.max() - vertices.min() > np.pi:
         vertices[vertices < 0.] += 2*np.pi
     phimin,phimax = vertices.min(),vertices.max()
-    phimin = phimin - 0.1*(phimax - phimin)
-    phimax = phimax + 0.1*(phimax - phimin)
+    phirange = phimax - phimin
+    phimin = phimin - border*phirange
+    phimax = phimax + border*phirange
     phi = np.linspace(phimin, phimax, points)
-    theta,phi = np.meshgrid(theta, phi)
-    dtheta,dphi = np.pi/float(points), 2*np.pi/float(points)
-    #print(bounds,theta,phi)
 
-    def indicator(theta, phi):
-        x,y = transform_cartesian(theta, phi)
-        return (x >= bounds[0]) & (x <= bounds[1]) & (y >= bounds[2]) & (y <= bounds[3])
+    #Subsample points compute integration parameters
+    theta,phi = np.meshgrid(theta, phi)
+    dtheta,dphi = phirange/float(points), thetarange/float(points)
+
+    x,y = transform_cartesian(theta, phi)
+    indicator = (x >= bounds[0]) & (x <= bounds[1]) & (y >= bounds[2]) & (y <= bounds[3])
         #indicator = (x >= bounds[0]) & (x <= bounds[1]) & (y >= bounds[2]) & (y <= bounds[3])
         #d = scatter.differential_intensity(theta, phi, ko, Z)
         #return indicator#*d
-    return np.sum(scatter.differential_intensity(theta,phi,ko,Z)*indicator(theta,phi)*np.sin(theta)*dtheta*dphi)
-   # 
+    return np.sum(scatter.differential_intensity(theta,phi,ko,Z)*indicator*np.sin(theta)*dtheta*dphi)

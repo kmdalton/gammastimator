@@ -9,7 +9,7 @@ argDict = {
     "Foff"                     : "CNS file containing un-pumped structure factor amplitudes.",
     "out"                      : "CSV intensity file to output.", 
     "--multiplicity"           : "Multiplicity of the dataset. Default is 10.",
-    "--missing"                : "Fraction of missing reflections.",
+    "--missing"                : "Fraction of missing reflections. Default is 0.",
     "--intensityshape"         : "Shape parameter for the distribution of intensities",
     "--intensityloc"           : "Location parameter for the distribution of intensities",
     "--intensityslope"         : "Relation between intensity metadata and reflection intensities",
@@ -34,15 +34,15 @@ argDict = {
     #Beam geometry parameters
     "--sigx"                   : "Variance in x pos in 'microns'",
     "--sigy"                   : "Variance in y pos in 'microns'",
-    "--divx"                   : "Beam x divergence in 'microns'",
-    "--divy"                   : "Beam y divergence in 'microns'",
+    "--divx"                   : "Beam size in x in 'microns' (standard deviation of bivariate gaussian)",
+    "--divy"                   : "Beam size in y in 'microns' (standard deviation of bivariate gaussian)",
 
     #Crystal dimensions and alignment parameters
-    "--sigheight"              : "Variance of crystal dimension in microns",
-    "--sigwidth"               : "Variance of crystal dimension in microns",
+    "--sigheight"              : "Standard deviation of crystal dimension in microns",
+    "--sigwidth"               : "Standard deviation of crystal dimension in microns",
     "--height"                 : "Mean of crystal dimension in microns",
     "--width"                  : "Mean of crystal dimension in microns",
-    "--sigalign"               : "Variance of crystal alignment dimension in microns",
+    "--sigalign"               : "Standard deviation of crystal alignment dimension in microns",
 }
 
 datatypes = {
@@ -105,7 +105,7 @@ defaults = {
     "--partialitymin"          : 0.1, 
     "--sigInoise"              : 0.03,
     "--runlength"              : 50, 
-    "--energy"                 : 10000., 
+    "--energy"                 : 12398., 
 
     #Beam geometry parameters
     "--sigx"                   : 10.,
@@ -221,7 +221,7 @@ def build_model(offFN, onFN, **kw):
         x,y = np.random.normal(0., sigx), np.random.normal(0., sigy)
         Icryst = 0.25*Io*(erf((xmax - x)/divx) - erf((xmin - x)/divx) * (erf((ymax - y)/divy) - erf((ymin - y)/divy)))
 
-        ipm_channels = ipm.ipm_readings(kw.get('energy', 10000.), x, y, points=500)
+        ipm_channels = ipm.ipm_readings(kw.get('energy', 12398.), x, y, points=500)
         ipm_0, ipm_1, ipm_2, ipm_3 = Io*ipm_channels/ipm_channels.sum()
         ipm_x = (ipm_1 - ipm_3) / (ipm_1 + ipm_3)
         ipm_y = (ipm_0 - ipm_2) / (ipm_0 + ipm_2)
@@ -248,34 +248,12 @@ def build_model(offFN, onFN, **kw):
         d = shot(xmin, xmax, ymin, ymax)
         for k,v in d.items():
             model.loc[idx, k] = v
-#    model['ipm2_xpos'],
-#    model['ipm2_ypos']
-#    )
-#TODO: Finish populating this using the above transform syntax
-    #what do we still need?
-#Io,IPM
+
+    model['I'] = model.Icryst*model.P*(model.Fon**2*model.SERIES.str.contains('on') + model.Foff**2*model.SERIES.str.contains('off'))
+    model['SIGMA(IOBS)'] = kw.get("sigintercept", 5.0) + kw.get("sigslope", 0.03)*model['I']
+    model['IOBS']  = np.random.normal(model['I'], model['SIGMA(IOBS)'])
     return model.sample(frac = 1. - kw.get('missing', 0.), replace=False)
 
-
-def add_beam_data(model):
-    nshots = len(model.groupby(['RUN', 'IMAGENUMBER', 'SERIES']))
-    x,y = np.random.normal(0., sigx, (2, nshots))
-    ipm_channels = np.vstack((ipm.ipm_readings(kw.get('energy', 10000.), i,j) for i,j in zip(x,y)))
-    #Normalize and split channels
-    ipm_0, ipm_1, ipm_2, ipm_3 = ipm_channels.T/ipm_channels.sum(1)
-    ipm_x = (ipm_1 - ipm_3) / (ipm_1 + ipm_3)
-    ipm_y = (ipm_0 - ipm_2) / (ipm_0 + ipm_2)
-
-    model['BEAMX'],model['BEAMY'],model['Io'] = 0.,0.,0.
-    model['BEAMX'] = model.groupby(['RUN', 'IMAGENUMBER', 'SERIES']).transform(lambda x: np.random.normal(0., sigx))
-    model['BEAMY'] = model.groupby(['RUN', 'IMAGENUMBER', 'SERIES']).transform(lambda x: np.random.normal(0., sigy))
-    model['Io']    = model.groupby(['RUN', 'IMAGENUMBER', 'SERIES']).transform(lambda x: np.random.gamma(
-        kw.get('intensityloc', 0.2), 
-        kw.get('intensityshape', 2.0)
-        )
-    )
-
-    i = (ipm.ipm_readings(kw.get('energy', 10000.), x, y) for x,y in zip(model['BEAMX'], model['BEAMY']))
 
 """
     for i in range(kw.get("onreps", 4)):
