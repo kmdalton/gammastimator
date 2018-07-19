@@ -255,31 +255,6 @@ def build_model(offFN, onFN, **kw):
     return model.sample(frac = 1. - kw.get('missing', 0.), replace=False)
 
 
-"""
-    for i in range(kw.get("onreps", 4)):
-        
-        iobs = model.copy()
-        model.loc[model['IMAGENUMBER'].isin(run), 'BEAMX'] = np.random.normal(0, sigx)
-        model.loc[model['IMAGENUMBER'].isin(run), 'BEAMY'] = np.random.normal(0, sigy)
-        iobs['intensity'] = np.random.gamma(kw.get('intensityloc', 0.2), kw.get('intensityshape', 2.0), len(iobs))
-        iobs['SERIES'] = 'on{}'.format(i + 1)
-        iobs['IOBS'] = model['P']*iobs['intensity']*model['Fon']**2
-        iobs['SIGMA(IOBS)'] = kw.get("sigintercept", 5.0) + kw.get("sigslope", 0.03)*iobs['IOBS']
-        iobs['IOBS'] = [np.random.normal(i, j) for i,j in zip(iobs['IOBS'], iobs['SIGMA(IOBS)'])]
-        I = pd.concat((I, iobs))
-
-    for i in range(kw.get("offreps", 4)):
-        iobs = model.copy()
-        iobs['intensity'] = np.random.gamma(kw.get('intensityloc', 0.2), kw.get('intensityshape', 2.0), len(iobs))
-        iobs['SERIES'] = 'off{}'.format(i + 1)
-        iobs['IOBS'] = model['P']*iobs['intensity']*model['Fon']**2
-        iobs['SIGMA(IOBS)'] = kw.get("sigintercept", 5.0) + kw.get("sigslope", 0.03)*iobs['IOBS']
-        iobs['IOBS'] = [np.random.normal(i, j) for i,j in zip(iobs['IOBS'], iobs['SIGMA(IOBS)'])]
-        I = pd.concat((I, iobs))
-"""
-    #return I.sample(frac = 1. - kw.get('missing', 0.), replace=False)
-
-
 
 def main():
     parser = argparse.ArgumentParser()
