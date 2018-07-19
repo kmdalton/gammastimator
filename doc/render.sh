@@ -10,3 +10,8 @@ done
 for i in fig/*.py;do
     python $i
 done
+
+
+pdflatex main.tex
+bibtex main.aux
+pdflatex main.tex
