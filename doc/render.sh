@@ -1,5 +1,7 @@
 #!/bin/bash
 
+./clean.sh
+
 for i in fig/*.svg;do
     outfn=${i#fig/}
     outfn=${outfn%.svg}.pdf
