@@ -19,26 +19,25 @@ film_distance = -10000.
 def mesh2d(bounds, points):
     return np.meshgrid(np.linspace(bounds[0], bounds[1], points), np.linspace(bounds[2], bounds[3], points))
 
-def plot_detector(readings, cmap=None, xpos=None, ypos=None, ax=None, norm=None):
+def plot_detector(readings, cmap=None, xpos=None, ypos=None, ax=None, norm=None, contours=None):
     """
     Parameters
     ----------
     readings : dict
         dictionary containing the names of panels and their respective readings
     """
+    contours = 100 if contours is None else contours
     ax = ax if ax is not None else plt.gca()
     cmap = cmap if cmap is not None else plt.get_cmap('viridis')
-    X,Y,Z = [],[],[]
+    vmin = 1e28*min([i.min() for i in readings.values()])
+    vmax = 1e28*max([i.max() for i in readings.values()])
+    norm = norm if norm is not None else mpl.colors.Normalize(vmin, vmax)
+
     for k,v in readings.items():
         x = np.linspace(panels[k][0], panels[k][1], v.shape[0])
         y = np.linspace(panels[k][2], panels[k][3], v.shape[1])
         x,y = np.meshgrid(x,y)
-        X = np.concatenate((X, x.flatten()))
-        Y = np.concatenate((Y, y.flatten()))
-        Z = np.concatenate((Z, v.flatten()))
-    Z = Z*1e28 #Barns
-    norm = norm if norm is not None else mpl.colors.Normalize(Z.min(), Z.max())
-    ax.hexbin(X, Y, Z, cmap=cmap, norm=norm)
+        ax.contourf(x, y, 1e28*v, contours, cmap=cmap, norm=norm)
     ax.set_facecolor(cmap(0.))
     for k,v in panels.items():
         ax.plot(v[:2], [v[2], v[2]], lw=3, c='w')
@@ -46,7 +45,7 @@ def plot_detector(readings, cmap=None, xpos=None, ypos=None, ax=None, norm=None)
         ax.plot([v[0], v[0]], v[2:], lw=3, c='w')
         ax.plot([v[1], v[1]], v[2:], lw=3, c='w')
     sm = mpl.cm.ScalarMappable(norm, cmap)
-    sm.set_array(Z)
+    sm.set_array(v)
     plt.colorbar(sm, ax=ax, label=r"$\frac{d\sigma }{d\Omega }\ (barn\ sr^{-1}\ atom^{-1})$")
     if xpos is not None:
         ax.scatter(xpos, ypos, edgecolors='w', facecolors='none')
