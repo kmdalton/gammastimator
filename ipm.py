@@ -101,7 +101,7 @@ def ipm_readings(ko, xpos, ypos, l=None, points=None, keys=None, integration_fun
     ypos : float
         beam y-position in microns
     """
-    points = 100 if points is None else points
+    points = 200 if points is None else points
     integration_function = hybrid_integrate_panel if integration_function is None else integration_function
     xpos,ypos = xpos,ypos
     l = film_distance if l is None else l
