@@ -221,7 +221,7 @@ def build_model(offFN, onFN, **kw):
         x,y = np.random.normal(0., sigx), np.random.normal(0., sigy)
         Icryst = 0.25*Io*(erf((xmax - x)/divx) - erf((xmin - x)/divx) * (erf((ymax - y)/divy) - erf((ymin - y)/divy)))
 
-        ipm_channels = ipm.ipm_readings(kw.get('energy', 12398.), x, y, points=500)
+        ipm_channels = ipm.ipm_readings(kw.get('energy', 12398.), x, y, points=100)
         ipm_0, ipm_1, ipm_2, ipm_3 = Io*ipm_channels/ipm_channels.sum()
         ipm_x = (ipm_1 - ipm_3) / (ipm_1 + ipm_3)
         ipm_y = (ipm_0 - ipm_2) / (ipm_0 + ipm_2)
