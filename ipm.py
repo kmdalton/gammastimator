@@ -29,15 +29,15 @@ def plot_detector(readings, cmap=None, xpos=None, ypos=None, ax=None, norm=None,
     contours = 100 if contours is None else contours
     ax = ax if ax is not None else plt.gca()
     cmap = cmap if cmap is not None else plt.get_cmap('viridis')
-    vmin = 1e28*min([i.min() for i in readings.values()])
-    vmax = 1e28*max([i.max() for i in readings.values()])
+    vmin = min([i.min() for i in readings.values()])
+    vmax = max([i.max() for i in readings.values()])
     norm = norm if norm is not None else mpl.colors.Normalize(vmin, vmax)
 
     for k,v in readings.items():
         x = np.linspace(panels[k][0], panels[k][1], v.shape[0])
         y = np.linspace(panels[k][2], panels[k][3], v.shape[1])
         x,y = np.meshgrid(x,y)
-        ax.contourf(x, y, 1e28*v, contours, cmap=cmap, norm=norm)
+        ax.contourf(x, y, v, contours, cmap=cmap, norm=norm)
     ax.set_facecolor(cmap(0.))
     for k,v in panels.items():
         ax.plot(v[:2], [v[2], v[2]], lw=3, c='w')
@@ -89,7 +89,7 @@ def differential_thomson_scattering(ko, l=None, Z=None, points=None, xpos=None, 
         readings[k] = scatter.thomson(theta, phi, ko, Z)
     return readings
 
-def ipm_readings(ko, xpos, ypos, l=None, points=None, keys=None):
+def ipm_readings(ko, xpos, ypos, l=None, points=None, keys=None, integration_function=None):
     """
     make up some ipm readings to go with a given photon energy and beam position. 
     Parameters
@@ -101,6 +101,7 @@ def ipm_readings(ko, xpos, ypos, l=None, points=None, keys=None):
     ypos : float
         beam y-position in microns
     """
+    integration_function = hybrid_integrate_panel if integration_function is None else integration_function
     xpos,ypos = xpos,ypos
     l = film_distance if l is None else l
     keys = keys or ['T', 'R', 'B', 'L']
@@ -109,8 +110,8 @@ def ipm_readings(ko, xpos, ypos, l=None, points=None, keys=None):
                   panels[k][2] - ypos ,
                   panels[k][3] - ypos
               ) for k in keys}
-    si = {k:integrate_panel(ko, bounds[k], l, 14, points) for k in keys}
-    n  = {k:integrate_panel(ko, bounds[k], l, 7, points)  for k in keys}
+    si = {k:integration_function(ko, bounds[k], l, 14, points) for k in keys}
+    n  = {k:integration_function(ko, bounds[k], l, 7, points)  for k in keys}
     t  = {k:3.*si[k]/7. + 4.*n[k]/7. for k in keys}
     return np.array([t[k] for k in keys])
 
@@ -128,9 +129,14 @@ def integrate_panel(ko, bounds, l=None, Z=None, points=None):
     x,y = mesh2d(bounds, points)
 
     theta, phi = scatter.transform_spherical(x, y, l)
+
     #Setting the integration ranges
+    thetamin,thetamax = theta.min(),theta.max()
     thetarange = theta.max() - theta.min()
-    theta = np.linspace(0.-thetarange*border, thetarange*(1.+border), points) + theta.min()
+    thetamin = thetamin - border*thetarange
+    thetamax = thetamax + border*thetarange
+    thetarange = thetamax - thetamin
+    theta = np.linspace(thetamin, thetamax, points) 
 
     vertices = np.arctan2([ymin, ymin, ymax, ymax], [xmin, xmax, xmin, xmax])
     if vertices.max() - vertices.min() > np.pi:
@@ -139,6 +145,7 @@ def integrate_panel(ko, bounds, l=None, Z=None, points=None):
     phirange = phimax - phimin
     phimin = phimin - border*phirange
     phimax = phimax + border*phirange
+    phirange = phimax - phimin
     phi = np.linspace(phimin, phimax, points)
 
     #Subsample points compute integration parameters
@@ -151,3 +158,134 @@ def integrate_panel(ko, bounds, l=None, Z=None, points=None):
         #d = scatter.differential_intensity(theta, phi, ko, Z)
         #return indicator#*d
     return np.sum(scatter.differential_intensity(theta,phi,ko,Z)*indicator*np.sin(theta)*dtheta*dphi)
+
+def solid_angle(xmin, xmax, ymin, ymax, d):
+    """
+    compute the solid angle of a rectangular detector 
+    Parameters
+    ----------
+    xmin : float
+        left detector edge
+    xmax : float
+        right detector edge
+    ymin : float
+        bottom detector edge
+    ymax : float
+        top detector edge
+    d : float
+        distance to the detector
+
+    Returns
+    -------
+    Omega : float
+        solid angle subtended by the detector
+    """
+    a,b = xmax - xmin, ymax - ymin
+    A,B = min(abs(xmin), abs(xmax)),min(abs(ymin), abs(ymax))
+
+    def centered_solid_angle(a, b, d):
+        alpha = a/2./d
+        beta  = b/2./d
+        return 4.*np.arccos(np.sqrt((1 + alpha**2 + beta**2) / ( (1 + alpha**2) * (1 + beta**2))))
+
+    case = np.sign([xmin, ymin]) == np.sign([xmax, ymax])
+    case = tuple(case)
+
+    if case == (0, 0):
+        return 0.25*(
+            centered_solid_angle(-2*A+2*a,-2*B+2*b, d) +
+            centered_solid_angle( 2*A    ,-2*B+2*b, d) +
+            centered_solid_angle(-2*A+2*a, 2*B    , d) +
+            centered_solid_angle( 2*A    , 2*B    , d) 
+        )
+
+    elif case == (1, 0):
+        return 0.25*(
+            centered_solid_angle(2*A+2*a,-2*B+2*b, d) -
+            centered_solid_angle(2*A    ,-2*B+2*b, d) +
+            centered_solid_angle(2*A+2*a, 2*B    , d) -
+            centered_solid_angle(2*A    , 2*B    , d) 
+        )
+
+    elif case == (0, 1):
+        A,a,B,b = B,b,A,a
+        return 0.25*(
+            centered_solid_angle(2*A+2*a,-2*B+2*b, d) -
+            centered_solid_angle(2*A    ,-2*B+2*b, d) +
+            centered_solid_angle(2*A+2*a, 2*B    , d) -
+            centered_solid_angle(2*A    , 2*B    , d) 
+        )
+
+    elif case == (1, 1):
+        return 0.25*(
+            centered_solid_angle(2*A+2*a, 2*B+2*b, d) -
+            centered_solid_angle(2*A    , 2*B+2*b, d) -
+            centered_solid_angle(2*A+2*a, 2*B    , d) +
+            centered_solid_angle(2*A    , 2*B    , d) 
+        )
+    else:
+#TODO: proper error handling here
+        return None
+
+
+def mc_integrate_panel(ko, bounds, l=None, Z=None, points=None):
+    xmin,xmax,ymin,ymax = bounds
+    border = 0.1 #add a border around the area to integrate
+    l = film_distance if l is None else l
+    points = 10000 if points is None else points
+
+    x,y = mesh2d(bounds, 100)
+    theta, phi = scatter.transform_spherical(x, y, l)
+    #Setting the integration ranges
+    thetamax,thetamin = theta.max(),theta.min()
+    thetarange = thetamax - thetamin
+    theta = np.linspace(0.-thetarange*border, thetarange*(1.+border), points) + thetamin
+
+    vertices = np.arctan2([ymin, ymin, ymax, ymax], [xmin, xmax, xmin, xmax])
+    if vertices.max() - vertices.min() > np.pi:
+        vertices[vertices < 0.] += 2*np.pi
+    phimin,phimax = vertices.min(),vertices.max()
+    phirange = phimax - phimin
+    phimin = phimin - border*phirange
+    phimax = phimax + border*phirange
+
+    phi = np.random.uniform(phimin, phimax, points)
+    theta = np.random.uniform(thetamin, thetamax, points)
+
+    x,y = transform_cartesian(theta, phi, l)
+    indicator = (x >= bounds[0]) & (x <= bounds[1]) & (y >= bounds[2]) & (y <= bounds[3])
+    phi,theta = phi[indicator],theta[indicator]
+    A = solid_angle(xmin, xmax, ymin, ymax, np.abs(l))
+    return A*np.mean(scatter.differential_intensity(theta,phi,ko,Z))
+
+def hybrid_integrate_panel(ko, bounds, l=None, Z=None, points=None):
+    xmin,xmax,ymin,ymax = bounds
+    border = 0.1 #add a border around the area to integrate
+    l = film_distance if l is None else l
+    points = 10000 if points is None else points
+
+    x,y = mesh2d(bounds, 100)
+    theta, phi = scatter.transform_spherical(x, y, l)
+    #Setting the integration ranges
+    thetamax,thetamin = theta.max(),theta.min()
+    thetarange = thetamax - thetamin
+    theta = np.linspace(0.-thetarange*border, thetarange*(1.+border), points) + thetamin
+
+    vertices = np.arctan2([ymin, ymin, ymax, ymax], [xmin, xmax, xmin, xmax])
+    if vertices.max() - vertices.min() > np.pi:
+        vertices[vertices < 0.] += 2*np.pi
+    phimin,phimax = vertices.min(),vertices.max()
+    phirange = phimax - phimin
+    phimin = phimin - border*phirange
+    phimax = phimax + border*phirange
+
+    theta = np.linspace(thetamin, thetamax, points) 
+    phi = np.linspace(phimin, phimax, points)
+    #Subsample points compute integration parameters
+    theta,phi = np.meshgrid(theta, phi)
+
+    x,y = transform_cartesian(theta, phi, l)
+    indicator = (x >= bounds[0]) & (x <= bounds[1]) & (y >= bounds[2]) & (y <= bounds[3])
+    phi,theta = phi[indicator],theta[indicator]
+    A = solid_angle(xmin, xmax, ymin, ymax, np.abs(l))
+    return A*np.mean(scatter.differential_intensity(theta,phi,ko,Z))
