@@ -263,14 +263,14 @@ def hybrid_integrate_panel(ko, bounds, l=None, Z=None, points=None):
     xmin,xmax,ymin,ymax = bounds
     border = 0.1 #add a border around the area to integrate
     l = film_distance if l is None else l
-    points = 10000 if points is None else points
+    points = 200 if points is None else points
 
     x,y = mesh2d(bounds, 100)
     theta, phi = scatter.transform_spherical(x, y, l)
     #Setting the integration ranges
     thetamax,thetamin = theta.max(),theta.min()
     thetarange = thetamax - thetamin
-    theta = np.linspace(0.-thetarange*border, thetarange*(1.+border), points) + thetamin
+    thetamin,thetamax = thetamin - border*thetarange, thetamax + border*thetarange
 
     vertices = np.arctan2([ymin, ymin, ymax, ymax], [xmin, xmax, xmin, xmax])
     if vertices.max() - vertices.min() > np.pi:
