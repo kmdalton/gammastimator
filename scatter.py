@@ -15,6 +15,7 @@ from os.path import dirname,realpath
 #I know global variables are evil, but these are constants which i really want to keep consistent
 mu = electron_mass*c*c/electron_volt
 ro = physical_constants['classical electron radius'][0]
+ro2= 1e28*(ro**2)
 
 
 class interpolator(dict):
@@ -86,7 +87,7 @@ def compton(theta, phi, ko, Z=None):
         The differential scattering element for a given phi and theta
     """
     k = ko*mu / (mu + ko*(1 - np.cos(np.pi - theta)))
-    c = 0.25*ro*ro*np.square(k/ko)*(k/ko + ko/k - 2.*np.square(np.sin(theta)*np.cos(phi)))
+    c = 0.25*ro2*np.square(k/ko)*(k/ko + ko/k - 2.*np.square(np.sin(theta)*np.cos(phi)))
     if Z is not None:
         wavelength = Planck*speed_of_light/(ko*electron_volt)*1e10
         x = np.sin((np.pi - theta)/2.)/wavelength
@@ -113,7 +114,7 @@ def thomson(theta, phi, ko, Z=None):
     d : float or array
         The differential scattering element for a given phi and theta
     """
-    t = ro*ro*(1. - np.square(np.sin(theta)*np.cos(phi)))
+    t = ro2*(1. - np.square(np.sin(theta)*np.cos(phi)))
     if Z is not None:
         wavelength = Planck*speed_of_light/(ko*electron_volt)*1e10
         x = np.sin((np.pi - theta)/2.)/wavelength
