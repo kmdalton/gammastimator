@@ -8,17 +8,15 @@ argDict = {
     "Fon"                      : "CNS file containing pumped structure factor amplitudes.",
     "Foff"                     : "CNS file containing un-pumped structure factor amplitudes.",
     "out"                      : "CSV intensity file to output.", 
-    "--multiplicity"           : "Multiplicity of the dataset. Default is 10.",
-    "--missing"                : "Fraction of missing reflections. Default is 0.",
-    "--intensityshape"         : "Shape parameter for the distribution of intensities",
-    "--intensityloc"           : "Location parameter for the distribution of intensities",
-    "--intensityslope"         : "Relation between intensity metadata and reflection intensities",
-    "--intensityoffset"        : "Intercept of the intensity measurements",
+    "--multiplicity"           : "The multiplicity to which the dataset is sampled. Internally simulate.py makes draws from the input data with replacement to build up the dataset of reflections. Multiplicity says for the program to make multiplicity * the number of reflections in the input data.",
+    "--missing"                : "The fraction of missing reflections in the dataset. A given reflection cannot always be integrated across all images at a given phi angle. This feature is meant to emulate the simple reality that reflections are often missing from some images. This will simply subsample the data before output. Users may wish to do this themselves in post. Subsampling will speed up data generation. If you plan to subsample for testing anyway, you may want to use this option."
+    "--intensityscale"         : "Scale parameter for the gamma distribution of IPM intensities",
+    "--intensityshape"         : "Shape parameter for the gamma distribution of intensities",
     "--reflectionsperimage"    : "Average number of reflections per image (default 150)",
     "--reflectionsperimagestd" : "Std deviation of reflectiosn per image (default 50)",
     "--minreflectionsperimage" : "Minimum reflections to generate per image",
     "--minimages"              : "Minimum images per run/crystal",
-    "--meannimages"            : "Mean images per run/crystal",
+    "--meanimages"            : "Mean images per run/crystal",
     "--stdimages"              : "Standard deviation images per run/crystal",
     "--onreps"                 : "Number of on images per phi angle.",
     "--offreps"                : "Number of off images per phi angle.",
@@ -27,13 +25,11 @@ argDict = {
     "--partialitymean"         : "Average partiality of reflections",
     "--partialitystd"          : "Average partiality of reflections",
     "--partialitymin"          : "Minimum partiality of reflections",
-    "--sigInoise"              : "Fractional error. SigI=error*I + u",
-    "--runlength"              : "Approximate number of phi angles per crystal",
     "--energy"                 : "X-Ray energy in electron volts",
 
     #Beam geometry parameters
-    "--sigx"                   : "Variance in x pos in 'microns'",
-    "--sigy"                   : "Variance in y pos in 'microns'",
+    "--sigx"                   : "Standard deviation in x pos in 'microns'",
+    "--sigy"                   : "Standard deviation in y pos in 'microns'",
     "--divx"                   : "Beam size in x in 'microns' (standard deviation of bivariate gaussian)",
     "--divy"                   : "Beam size in y in 'microns' (standard deviation of bivariate gaussian)",
 
@@ -48,15 +44,13 @@ argDict = {
 datatypes = {
     "--multiplicity"           : float ,
     "--missing"                : float , 
-    "--intensityshape"         : float ,
-    "--intensityloc"           : float , 
-    "--intensityslope"         : float ,
-    "--intensityoffset"        : float ,
+    "--intensityscale"         : float ,
+    "--intensityshape"           : float , 
     "--reflectionsperimage"    : int,
     "--reflectionsperimagestd" : int,
     "--minreflectionsperimage" : int,
     "--minimages"              : int,
-    "--meannimages"            : int,
+    "--meanimages"            : int,
     "--stdimages"              : int, 
     "--onreps"                 : int,
     "--offreps"                : int,
@@ -65,8 +59,6 @@ datatypes = {
     "--partialitymean"         : float,
     "--partialitystd"          : float,
     "--partialitymin"          : float,
-    "--sigInoise"              : float,
-    "--runlength"              : int,
     "--energy"                 : float,
 
     #Beam geometry parameters
@@ -86,15 +78,13 @@ datatypes = {
 defaults = {
     "--multiplicity"           : 10.,
     "--missing"                : 0.0, 
-    "--intensityshape"         : 2.,
-    "--intensityloc"           : 0.2, 
-    "--intensityslope"         : 1.0,
-    "--intensityoffset"        : 0.0,
+    "--intensityscale"         : 2.,
+    "--intensityshape"           : 0.2, 
     "--reflectionsperimage"    : 150,
     "--reflectionsperimagestd" : 50,
     "--minreflectionsperimage" : 50,
     "--minimages"              : 10,
-    "--meannimages"            : 10,
+    "--meanimages"            : 10,
     "--stdimages"              : 10, 
     "--onreps"                 : 4, 
     "--offreps"                : 4,
@@ -103,8 +93,6 @@ defaults = {
     "--partialitymean"         : 0.6,
     "--partialitystd"          : 0.2, 
     "--partialitymin"          : 0.1, 
-    "--sigInoise"              : 0.03,
-    "--runlength"              : 50, 
     "--energy"                 : 12398., 
 
     #Beam geometry parameters
@@ -217,7 +205,7 @@ def build_model(offFN, onFN, **kw):
     divx,divy = np.sqrt(2)*divx,np.sqrt(2)*divy
 
     def shot(xmin, xmax, ymin, ymax):
-        Io = np.random.gamma(kw.get('intensityloc', 0.2), kw.get('intensityshape', 2.))
+        Io = np.random.gamma(kw.get('intensityshape', 0.2), kw.get('intensityscale', 2.))
         x,y = np.random.normal(0., sigx), np.random.normal(0., sigy)
         Icryst = 0.25*Io*(erf((xmax - x)/divx) - erf((xmin - x)/divx) * (erf((ymax - y)/divy) - erf((ymin - y)/divy)))
 
@@ -242,6 +230,9 @@ def build_model(offFN, onFN, **kw):
     for k in keys:
         model[k] = 0.
 
+    #Subsample the data before the time consuming step of integrating ipm panels
+    model = model.sample(frac = 1. - kw.get('missing', 0.), replace=False)
+
     g = model.groupby(['RUN', 'IMAGENUMBER', 'SERIES'])
     for idx in g.groups.values():
         xmin,xmax,ymin,ymax = model.loc[idx, ['CRYSTLEFT', 'CRYSTRIGHT', 'CRYSTBOTTOM', 'CRYSTTOP']].mean()
@@ -252,7 +243,7 @@ def build_model(offFN, onFN, **kw):
     model['I'] = model.Icryst*model.P*(model.Fon**2*model.SERIES.str.contains('on') + model.Foff**2*model.SERIES.str.contains('off'))
     model['SIGMA(IOBS)'] = kw.get("sigintercept", 5.0) + kw.get("sigslope", 0.03)*model['I']
     model['IOBS']  = np.random.normal(model['I'], model['SIGMA(IOBS)'])
-    return model.sample(frac = 1. - kw.get('missing', 0.), replace=False)
+    return model
 
 
 
