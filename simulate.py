@@ -9,7 +9,7 @@ argDict = {
     "Foff"                     : "CNS file containing un-pumped structure factor amplitudes.",
     "out"                      : "CSV intensity file to output.", 
     "--multiplicity"           : "The multiplicity to which the dataset is sampled. Internally simulate.py makes draws from the input data with replacement to build up the dataset of reflections. Multiplicity says for the program to make multiplicity * the number of reflections in the input data.",
-    "--missing"                : "The fraction of missing reflections in the dataset. A given reflection cannot always be integrated across all images at a given phi angle. This feature is meant to emulate the simple reality that reflections are often missing from some images. This will simply subsample the data before output. Users may wish to do this themselves in post. Subsampling will speed up data generation. If you plan to subsample for testing anyway, you may want to use this option."
+    "--missing"                : "The fraction of missing reflections in the dataset. A given reflection cannot always be integrated across all images at a given phi angle. This feature is meant to emulate the simple reality that reflections are often missing from some images. This will simply subsample the data before output. Users may wish to do this themselves in post. Subsampling will speed up data generation. If you plan to subsample for testing anyway, you may want to use this option.",
     "--intensityscale"         : "Scale parameter for the gamma distribution of IPM intensities",
     "--intensityshape"         : "Shape parameter for the gamma distribution of intensities",
     "--reflectionsperimage"    : "Average number of reflections per image (default 150)",
@@ -198,35 +198,21 @@ def build_model(offFN, onFN, **kw):
         n['SERIES'] = 'on{}'.format(i+1)
         model = pd.concat((model, n))
 
-#Things we need to populate: Io, Icryst, BEAMX, BEAMY, IPM_0, IPM_1, IPM_2, IPM_3, IPM_X, IPM_Y
-#Note that Io == sum(IPM_0,1,2,3)
-    sigx,sigy = kw.get('sigx', 10.),kw.get('sigy', 5.)
-    divx,divy = kw.get('divx', 100.),kw.get('divy', 50.)
-    divx,divy = np.sqrt(2)*divx,np.sqrt(2)*divy
 
-    def shot(xmin, xmax, ymin, ymax):
-        Io = np.random.gamma(kw.get('intensityshape', 0.2), kw.get('intensityscale', 2.))
-        x,y = np.random.normal(0., sigx), np.random.normal(0., sigy)
-        Icryst = 0.25*Io*(erf((xmax - x)/divx) - erf((xmin - x)/divx) * (erf((ymax - y)/divy) - erf((ymin - y)/divy)))
+    keys = [
+            'BEAMX' ,
+            'BEAMY' ,
+            'Io'    ,
+            'Icryst',
+            'IPM_0' ,
+            'IPM_1' ,
+            'IPM_2' ,
+            'IPM_3' ,
+            'IPM_X' ,
+            'IPM_Y' ,
+        ]
 
-        ipm_channels = ipm.ipm_readings(kw.get('energy', 12398.), x, y, points=200)
-        ipm_0, ipm_1, ipm_2, ipm_3 = Io*ipm_channels/ipm_channels.sum()
-        ipm_x = (ipm_1 - ipm_3) / (ipm_1 + ipm_3)
-        ipm_y = (ipm_0 - ipm_2) / (ipm_0 + ipm_2)
-        return {
-            'BEAMX' : x, 
-            'BEAMY' : y, 
-            'Io'    : Io,
-            'Icryst': Icryst,
-            'IPM_0' : ipm_0, 
-            'IPM_1' : ipm_1, 
-            'IPM_2' : ipm_2, 
-            'IPM_3' : ipm_3, 
-            'IPM_X' : ipm_x,
-            'IPM_Y' : ipm_y,
-        }
 
-    keys = list(shot(0., 0., 0., 0.).keys())
     for k in keys:
         model[k] = 0.
 
@@ -234,11 +220,32 @@ def build_model(offFN, onFN, **kw):
     model = model.sample(frac = 1. - kw.get('missing', 0.), replace=False)
 
     g = model.groupby(['RUN', 'IMAGENUMBER', 'SERIES'])
-    for idx in g.groups.values():
-        xmin,xmax,ymin,ymax = model.loc[idx, ['CRYSTLEFT', 'CRYSTRIGHT', 'CRYSTBOTTOM', 'CRYSTTOP']].mean()
-        d = shot(xmin, xmax, ymin, ymax)
-        for k,v in d.items():
-            model.loc[idx, k] = v
+    n = len(g)
+
+#Things we need to populate: Io, Icryst, BEAMX, BEAMY, IPM_0, IPM_1, IPM_2, IPM_3, IPM_X, IPM_Y
+#Note that Io == sum(IPM_0,1,2,3)
+    sigx,sigy = kw.get('sigx', 10.),kw.get('sigy', 5.)
+    divx,divy = kw.get('divx', 100.),kw.get('divy', 50.)
+    divx,divy = np.sqrt(2)*divx,np.sqrt(2)*divy
+
+    d = np.zeros((n, 9))
+    d[:,0],d[:,1] = np.random.normal(0., sigx, n), np.random.normal(0., sigy, n)
+    d[:,2:6] = np.vstack([ipm.ipm_readings(kw.get('energy', 12398.), i, j, points=kw.get('points', 500)) for i,j in zip(d[:,0], d[:,1])])
+    d[:,8] = np.random.gamma(kw.get('intensityshape', 0.2), kw.get('intensityscale', 2.), n)
+    d[:,6] = (d[:,3] - d[:,5]) / (d[:,3] + d[:,5])
+    d[:,7] = (d[:,2] - d[:,4]) / (d[:,2] + d[:,4])
+    d[:,2:6] = d[:,-1,None]*d[:,2:6]/d[:,2:6].sum(1)[:,None]
+
+    for i,idx in enumerate(g.groups.values()):
+        model.loc[idx, ['BEAMX', 'BEAMY', 'IPM_0', 'IPM_1', 'IPM_2', 'IPM_3', 'IPM_X', 'IPM_Y', 'Io']] = d[i]
+
+    model['Icryst'] = 0.25*model['Io']*(
+            erf((model['CRYSTRIGHT']  - model['BEAMX'])/divx) - 
+            erf((model['CRYSTLEFT']   - model['BEAMX'])/divx) 
+            ) * (
+            erf((model['CRYSTTOP']    - model['BEAMY'])/divy) - 
+            erf((model['CRYSTBOTTOM'] - model['BEAMY'])/divy)
+        )
 
     model['I'] = model.Icryst*model.P*(model.Fon**2*model.SERIES.str.contains('on') + model.Foff**2*model.SERIES.str.contains('off'))
     model['SIGMA(IOBS)'] = kw.get("sigintercept", 5.0) + kw.get("sigslope", 0.03)*model['I']
