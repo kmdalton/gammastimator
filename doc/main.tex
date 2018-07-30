@@ -5,6 +5,7 @@
 \usepackage{graphicx}
 \usepackage{listings}
 \usepackage{amsmath}
+\usepackage{amssymb}
 \graphicspath{ {renders/} }
 
 
@@ -189,7 +190,7 @@ To compute f, we simply integrate $\mathcal{N}$ over the surface area of the cry
 \begin{equation}
 \begin{aligned}
 f = \int_A &\frac {1} {2\pi \sigma_x \sigma_y} e^{-\frac {1} {2} \big[ \frac {(x - xpos)^2}{\sigma_x^2} + \frac {(y - ypos)^2}{\sigma_y^2} \big]} \\
-f = \frac {1} {4} \bigg[ &\bigg( Erf (\frac {xmin - xpos} {\sqrt {2} \sigma_x}) - Erf (\frac {xmax - xpos} {\sqrt {2} \sigma_x)} )\bigg)  \\
+f = \frac {1} {4} \bigg[ &\bigg( Erf (\frac {xmin - xpos} {\sqrt {2} \sigma_x}) - Erf (\frac {xmax - xpos} {\sqrt {2} \sigma_x} ) \bigg)  \\
  &\bigg( Erf ( \frac {ymin - ypos} {\sqrt {2} \sigma_y}) - Erf (\frac {ymax - ypos} {\sqrt {2} \sigma_y}) \bigg)  \bigg]
 \end{aligned}
 \end{equation}
@@ -400,8 +401,124 @@ The reader should appreciate that this is not an exhaustive list of the availabl
     In simulate.py, the alignment of each crystal in \textmu m relative to the average beam center is drawn from a gaussian with this standard deviation and zero mean.
 \end{quote}
 
+\chapter{Structure Factor Ratio Inference}
+\section{Ratiometric Data Collection Strategy for Time Resolved Crystallography}
+The goal of time resolved x-ray crystallography (TR-X), is often to estimate the difference in structure factor amplitudes for a crystal before and after some perturbation is made. 
+Typical experiments use visible pump lasers to excite crystals which are then probed with X radiation after some time delay. 
+A common data analysis paradigm is to construct an isomorphous difference map between the unperturbed (off) and perturbed (on) structure factor amplitudes. 
+
+\begin{equation}
+\Delta F_{hkl} = F^{on}_{hkl} - F^{off}_{hkl}
+\end{equation}
+
+Using $\Delta F$ as fourier coefficients and a high resolution structure to supply phases can give the experiment an idea of how the electronic structure of the sample was changed by the pump. 
+At Laue beamlines like BioCARS, Sector 14-ID of the Advanced Photon Source, this parameter can be directly inferred from integrated data. 
+Nevertheless, it is not always possible to directly infer accurate on and off structure factor amplitudes from TR-X data. 
+The ratio method was invented to overcome this limitation. 
+In ratiometric TR-X, the goal of the experiment is to infer the ratio between the on and off intensities. 
+\begin{equation} \label{eq:gamma}
+\gamma_{hkl} = \frac{I^{on}_{hkl}}{I^{off}_{hkl}}
+\end{equation}
+
+The intensity ratio, $\gamma_{hkl}$ of a given reflection can then be used to compute the fourier difference map coefficients, $\Delta F$. 
+\begin{align}
+\gamma_{hkl} &= \frac{I^{on}_{hkl}}{I^{off}_{hkl}} \nonumber \\
+\gamma_{hkl} &= \bigg( \frac{F^{on}_{hkl}}{F^{off}_{hkl}} \bigg) ^2 \nonumber \\
+\sqrt{\gamma_{hkl}} &= \frac{F^{on}_{hkl}}{F^{off}_{hkl}} \nonumber \\
+F^{on}_{hkl} &= \sqrt{\gamma_{hkl}} F^{off}_{hkl}  \nonumber \\
+F^{on}_{hkl} - F^{off}_{hkl} &= \sqrt{\gamma_{hkl}} F^{off}_{hkl} - F^{off}_{hkl} \nonumber \\
+\Delta F &= (\sqrt{\gamma_{hkl}} - 1 ) F^{off}_{hkl} 
+\end{align}
+
+Using this equation in order to estimate map coefficients requires being able to infer the intensity ratios, $\gamma_{hkl}$ from TR-X data. One advantage of this technique is that the structure factor amplitudes from a reference structure acquired at a conventional beamline can be supplied for the $F^{off}_{hkl}$ term. 
+
+\section{Estimating Intensity Ratios from X-FEL Data}
+Owing to fluctuations in intensity and pointing instability in the X-ray beam, intensity ratios cannot be directly estimated from integrated Bragg peaks according to equation \ref{eq:gamma}. 
+In Gammastimator, we have chosen to invoke a regularized maximum likelihood model which integrates beam position and intensity information to estimate $\gamma_{hkl}$. 
+
+\subsection{Indices for Data Address}
+We will adopt some conventions to describe indexing of integrated Bragg peak intensities, IPM data, and optimization variables.
+Let the dataset consist of a number of images indexed by $i\in {1, 2, ... n}$.
+Then the indexes shall be subdivided into sets as follows:
+\break
+
+
+\begin{center}
+\begin{tabular}{r | p{0.5\textwidth}}
+$r_k$ & The set of images in run number k \\ \hline
+$\phi_l$ & The set of images with an oscillation number l \\ \hline
+$N$ & The set of on images \\ \hline
+$F$ & The set of off images \\ \hline
+$h\in H$ & Shorthand for the h,k,l index corresponding to a reflection; a member of $H$ or the set of all the reflection in the dataset
+\end{tabular} 
+\end{center}
+
+
+Let reflection intensities by given by $I$ such that the $I_{h,i}$ corresponds to reflection $h$ of the image with index $i$. 
+There are a set of metadata associated with each image which can also be indexed by i. 
+Most importantly, there are the IPM readings associated with each image from which we seek to estimate the photon flux intersecting the crystal position.  
+\break
+\begin{center}
+\begin{tabular}{r | l}
+$M_i$ & Sum of all IPM channels\\ \hline
+$T_i$ & \underline{T}op    IPM channel reading\\ \hline
+$R_i$ & \underline{R}ight  IPM channel reading\\ \hline
+$B_i$ & \underline{B}ottom IPM channel reading\\ \hline
+$L_i$ & \underline{L}eft   IPM channel reading\\ 
+\end{tabular}
+\end{center}
+
+\subsection{Optimization Variables}
+In order to recover estimates of the intensity ratios for reflections, a number of factors must be accounted for. 
+Most notably, intensity and position fluctuations of the x-ray beam should be thoughtfully modeled. 
+In Gammastimator, we take the total photon flux upstream of the sample position to be linear with respect to the IPM readings.
+
+\begin{equation}\label{eq:flux}
+I_i = aM_i + b
+\end{equation}
+
+Likewise, we consider the true beam position to go linearly with the IPM position estimates.
+\begin{align}
+X_i &= c \bigg( \frac {R_i - L_i} {R_i + L_i}  \bigg) + d \\ \nonumber
+Y_i &= e \bigg( \frac {T_i - B_i} {T_i + B_i}  \bigg) + f
+\end{align}
+
+The beam geometry assumed by Gammastimator is a bivariate gaussian with zero covariance. 
+Two shape parameters $\sigma_x$ and $\sigma_y$ governing the extent of the beam in each dimension are optimized during the learning. 
+The linear extent of crystals in the beam is also modeled. 
+This consideration is essential as crystal alignment can be off by tens of microns from dead center. 
+To address this issue, gammastimator introduces four parameters per run which correspond to the left, right, bottom, and top edges of the crystal. 
+These parameters, $\chi_k \in \mathbb{R}^4$, determine the integration bounds used to compute the fraction of flux incident on the crystal. 
+
+\begin{align}
+f_i = &Icryst_i / I_i \nonumber \\
+f_i = &\frac {I_i} {4}  \bigg[Erf\bigg(\frac{\chi_{i,1} - X_i} {\sqrt{2} \sigma_x}\bigg) - 
+Erf\bigg(\frac{\chi_{i,2} - X_i} {\sqrt{2} \sigma_x}\bigg)\bigg] \nonumber \\ 
+&\bigg[Erf\bigg(\frac{\chi_{i,3} - Y_i} {\sqrt{2} \sigma_y}\bigg) - Erf\bigg(\frac{\chi_{i,4} - Y_i} {\sqrt{2} \sigma_y}\bigg)\bigg] \nonumber
+\end{align}
+
+The remaining optimization variables are the intensity ratios, $\gamma_h$. 
+This accounts for far and away the largest fraction of the optimization variables. 
+A typical experiment will likely include tens of thousands of $gamma$ values which need to be estimated. 
+
+
+\subsection{A Regularized Maximum Likelihood Model for Intensity Ratios}
+
+\begin{equation}\label{eq:reflection_error}
+\mu_{h,k,l} = \gamma_h \sum_{i\in R_k \cap \phi_l \cap F} I_{h,i} - \sum_{i\in R_k \cap \phi_l \cap N} I_{h,i} \frac {\sum_{i \in R_k \cap \phi_l \cap F} Icryst_i} {\sum_{i \in R_k \cap \phi_l \cap N} Icryst_i}
+\end{equation}
+
+\begin{equation}
+\sum_{k,l,h} | \mu _{h,k,l} | + \rho L ||\log(\gamma)||_1
+\end{equation}
+
+\begin{equation}
+L = \frac {|\mu|} {|H|}
+\end{equation}
+
 
 \bibliographystyle{plain}
 \bibliography{references}
+
 
 \end{document}
