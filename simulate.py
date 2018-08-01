@@ -250,6 +250,7 @@ def build_model(offFN, onFN, **kw):
     model['I'] = model.Icryst*model.P*(model.Fon**2*model.SERIES.str.contains('on') + model.Foff**2*model.SERIES.str.contains('off'))
     model['SIGMA(IOBS)'] = kw.get("sigintercept", 5.0) + kw.get("sigslope", 0.03)*model['I']
     model['IOBS']  = np.random.normal(model['I'], model['SIGMA(IOBS)'])
+    model['PHINUMBER'] = model[['RUN', 'IMAGENUMBER']].groupby('RUN').transform(lambda x: x - np.min(x) +1)
     return model
 
 
