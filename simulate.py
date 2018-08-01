@@ -127,6 +127,7 @@ def build_model(offFN, onFN, **kw):
     model['Foff'] = model['F']
     model['Fon'] = Fon.loc[model.index]
     del model['F']
+    model.reset_index(inplace=True)
 
     #you could do this with np.repeat in a couple of lines but it is unreadable
     minref  = kw.get('minreflections', 50)
