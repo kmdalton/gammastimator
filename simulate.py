@@ -144,13 +144,13 @@ def build_model(offFN, onFN, **kw):
         if len(imagenumber) > len(model):
             imagenumber = imagenumber[:len(model)]
         
-    model["IMAGENUMBER"] = imagenumber
+    model["PHINUMBER"] = imagenumber
 
     meanimages = kw.get('meanimages', 50)
     stdimages = kw.get('stdimages', 20)
     minimages = kw.get('minimages', 10)
     runs = []
-    images = list(model['IMAGENUMBER'].unique())
+    images = list(model['PHINUMBER'].unique())
     while len(images) > 0:
         ct = max(minimages, int(np.random.normal(meanimages, stdimages)))
         if len(images) < ct:
@@ -172,11 +172,11 @@ def build_model(offFN, onFN, **kw):
         y = np.random.normal(0., sigalign)
         h = np.random.normal(height, sigh)
         w = np.random.normal(width , sigw)
-        model.loc[model['IMAGENUMBER'].isin(run), 'RUN'] = n
-        model.loc[model['IMAGENUMBER'].isin(run), 'CRYSTBOTTOM'] = y - h/2.
-        model.loc[model['IMAGENUMBER'].isin(run), 'CRYSTTOP']    = y + h/2.
-        model.loc[model['IMAGENUMBER'].isin(run), 'CRYSTLEFT']   = x - w/2.
-        model.loc[model['IMAGENUMBER'].isin(run), 'CRYSTRIGHT']  = x + w/2.
+        model.loc[model['PHINUMBER'].isin(run), 'RUN'] = n
+        model.loc[model['PHINUMBER'].isin(run), 'CRYSTBOTTOM'] = y - h/2.
+        model.loc[model['PHINUMBER'].isin(run), 'CRYSTTOP']    = y + h/2.
+        model.loc[model['PHINUMBER'].isin(run), 'CRYSTLEFT']   = x - w/2.
+        model.loc[model['PHINUMBER'].isin(run), 'CRYSTRIGHT']  = x + w/2.
 
     partiality = np.random.normal(kw.get("partialitymean", 0.6), kw.get("partialitystd", 0.2), len(model))
     partiality = np.minimum(partiality, 1.)
@@ -210,6 +210,7 @@ def build_model(offFN, onFN, **kw):
             'IPM_3' ,
             'IPM_X' ,
             'IPM_Y' ,
+            'IMAGENUMBER' ,
         ]
 
 
@@ -219,7 +220,7 @@ def build_model(offFN, onFN, **kw):
     #Subsample the data before the time consuming step of integrating ipm panels
     model = model.sample(frac = 1. - kw.get('missing', 0.), replace=False)
 
-    g = model.groupby(['RUN', 'IMAGENUMBER', 'SERIES'])
+    g = model.groupby(['RUN', 'PHINUMBER', 'SERIES'])
     n = len(g)
 
 #Things we need to populate: Io, Icryst, BEAMX, BEAMY, IPM_0, IPM_1, IPM_2, IPM_3, IPM_X, IPM_Y
@@ -228,16 +229,17 @@ def build_model(offFN, onFN, **kw):
     divx,divy = kw.get('divx', 100.),kw.get('divy', 50.)
     divx,divy = np.sqrt(2)*divx,np.sqrt(2)*divy
 
-    d = np.zeros((n, 9))
+    d = np.zeros((n, 10))
     d[:,0],d[:,1] = np.random.normal(0., sigx, n), np.random.normal(0., sigy, n)
     d[:,2:6] = np.vstack([ipm.ipm_readings(kw.get('energy', 12398.), i, j, points=kw.get('points', 500)) for i,j in zip(d[:,0], d[:,1])])
     d[:,8] = np.random.gamma(kw.get('intensityshape', 0.2), kw.get('intensityscale', 2.), n)
     d[:,6] = (d[:,3] - d[:,5]) / (d[:,3] + d[:,5])
     d[:,7] = (d[:,2] - d[:,4]) / (d[:,2] + d[:,4])
     d[:,2:6] = d[:,-1,None]*d[:,2:6]/d[:,2:6].sum(1)[:,None]
+    d[:,9] = np.arange(n) + 1
 
     for i,idx in enumerate(g.groups.values()):
-        model.loc[idx, ['BEAMX', 'BEAMY', 'IPM_0', 'IPM_1', 'IPM_2', 'IPM_3', 'IPM_X', 'IPM_Y', 'Io']] = d[i]
+        model.loc[idx, ['BEAMX', 'BEAMY', 'IPM_0', 'IPM_1', 'IPM_2', 'IPM_3', 'IPM_X', 'IPM_Y', 'Io', 'IMAGENUMBER']] = d[i]
 
     model['Icryst'] = 0.25*model['Io']*(
             erf((model['CRYSTRIGHT']  - model['BEAMX'])/divx) - 
@@ -250,7 +252,8 @@ def build_model(offFN, onFN, **kw):
     model['I'] = model.Icryst*model.P*(model.Fon**2*model.SERIES.str.contains('on') + model.Foff**2*model.SERIES.str.contains('off'))
     model['SIGMA(IOBS)'] = kw.get("sigintercept", 5.0) + kw.get("sigslope", 0.03)*model['I']
     model['IOBS']  = np.random.normal(model['I'], model['SIGMA(IOBS)'])
-    model['PHINUMBER'] = model[['RUN', 'IMAGENUMBER']].groupby('RUN').transform(lambda x: x - np.min(x) +1)
+    model['PHINUMBER'] = model[['RUN', 'PHINUMBER']].groupby('RUN').transform(lambda x: x - np.min(x) +1)
+    model['IMAGENUMBER'] = model['IMAGENUMBER'].astype(int)
     return model
 
 
