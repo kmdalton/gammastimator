@@ -445,8 +445,8 @@ Then the indexes shall be subdivided into sets as follows:
 
 \begin{center}
 \begin{tabular}{r | p{0.5\textwidth}}
-$r_k$ & The set of images in run number k \\ \hline
-$\phi_l$ & The set of images with an oscillation number l \\ \hline
+$R_r$ & The set of images in run number k \\ \hline
+$\phi_s$ & The set of images with an oscillation number l \\ \hline
 $N$ & The set of on images \\ \hline
 $F$ & The set of off images \\ \hline
 $h\in H$ & Shorthand for the h,k,l index corresponding to a reflection; a member of $H$ or the set of all the reflection in the dataset
@@ -492,9 +492,9 @@ These parameters, $\chi_k \in \mathbb{R}^4$, determine the integration bounds us
 
 \begin{align}
 f_i = &Icryst_i / I_i \nonumber \\
-f_i = &\frac {I_i} {4}  \bigg[Erf\bigg(\frac{\chi_{i,1} - X_i} {\sqrt{2} \sigma_x}\bigg) - 
-Erf\bigg(\frac{\chi_{i,2} - X_i} {\sqrt{2} \sigma_x}\bigg)\bigg] \nonumber \\ 
-&\bigg[Erf\bigg(\frac{\chi_{i,3} - Y_i} {\sqrt{2} \sigma_y}\bigg) - Erf\bigg(\frac{\chi_{i,4} - Y_i} {\sqrt{2} \sigma_y}\bigg)\bigg] \nonumber
+f_i = &\frac {I_i} {4}  \bigg[Erf\bigg(\frac{\chi_{r,1} - X_i} {\sqrt{2} \sigma_x}\bigg) - 
+Erf\bigg(\frac{\chi_{r,2} - X_i} {\sqrt{2} \sigma_x}\bigg)\bigg] \nonumber \\ 
+&\bigg[Erf\bigg(\frac{\chi_{r,3} - Y_i} {\sqrt{2} \sigma_y}\bigg) - Erf\bigg(\frac{\chi_{r,4} - Y_i} {\sqrt{2} \sigma_y}\bigg)\bigg] \nonumber
 \end{align}
 
 The remaining optimization variables are the intensity ratios, $\gamma_h$. 
@@ -506,7 +506,7 @@ A typical experiment will likely include tens of thousands of $gamma$ values whi
 
 The absolute deviation between a given reflection observation and an intensity ratio can be formulated as
 \begin{equation}\label{eq:reflection_error}
-\mu_{h,k,l} = \gamma_h  - \frac {\sum_{i\in R_k \cap \phi_l \cap N} I_{h,i} \sum_{i \in R_k \cap \phi_l \cap F} Icryst_i} {\sum_{i\in R_k \cap \phi_l \cap F} I_{h,i} \sum_{i \in R_k \cap \phi_l \cap N} Icryst_i}.
+\mu_{h,r,s} = \gamma_h  - \frac {\sum_{i\in R_r \cap \phi_s \cap N} I_{h,i} \sum_{i \in R_r \cap \phi_s \cap F} Icryst_i} {\sum_{i\in R_r \cap \phi_s \cap F} I_{h,i} \sum_{i \in R_r \cap \phi_s \cap N} Icryst_i}.
 \end{equation}
 To ensure the fidelity of the model with respect to the observed data, we can minimize the sum of the absolute deviations. 
 I believe this is essentially equivalent to maximizing the likelihood of of the model under a Lorentzian prior on the error. 
