@@ -193,7 +193,7 @@ def build_model(offFN, onFN, **kw):
         n = m.copy()
         n['SERIES'] = 'off{}'.format(i+2)
         model = pd.concat((model, n))
-
+ 
     for i in range(kw.get('onreps', 4)):
         n = m.copy()
         n['SERIES'] = 'on{}'.format(i+1)
@@ -222,25 +222,27 @@ def build_model(offFN, onFN, **kw):
     model = model.sample(frac = 1. - kw.get('missing', 0.), replace=False)
 
     g = model.groupby(['RUN', 'PHINUMBER', 'SERIES'])
+    model = model.set_index(['RUN', 'PHINUMBER', 'SERIES'])
     n = len(g)
 
-#Things we need to populate: Io, Icryst, BEAMX, BEAMY, IPM_0, IPM_1, IPM_2, IPM_3, IPM_X, IPM_Y
-#Note that Io == sum(IPM_0,1,2,3)
+    #Things we need to populate: Io, Icryst, BEAMX, BEAMY, IPM_0, IPM_1, IPM_2, IPM_3, IPM_X, IPM_Y
+    #Note that Io == sum(IPM_0,1,2,3)
     sigx,sigy = kw.get('sigx', 10.),kw.get('sigy', 5.)
     divx,divy = kw.get('divx', 100.),kw.get('divy', 50.)
     divx,divy = np.sqrt(2)*divx,np.sqrt(2)*divy
 
-    d = np.zeros((n, 10))
+    d = np.zeros((n, 9)) 
     d[:,0],d[:,1] = np.random.normal(0., sigx, n), np.random.normal(0., sigy, n)
     d[:,2:6] = np.vstack([ipm.ipm_readings(kw.get('energy', 12398.), i, j, points=kw.get('points', 500)) for i,j in zip(d[:,0], d[:,1])])
     d[:,8] = np.random.gamma(kw.get('intensityshape', 0.2), kw.get('intensityscale', 2.), n)
     d[:,6] = (d[:,3] - d[:,5]) / (d[:,3] + d[:,5])
     d[:,7] = (d[:,2] - d[:,4]) / (d[:,2] + d[:,4])
     d[:,2:6] = d[:,-1,None]*d[:,2:6]/d[:,2:6].sum(1)[:,None]
-    d[:,9] = np.arange(n) + 1
+    d = np.hstack((d, np.arange(n)[:, None] + 1))
 
-    for i,idx in enumerate(g.groups.values()):
+    for i,idx in enumerate(g.groups):
         model.loc[idx, ['BEAMX', 'BEAMY', 'IPM_0', 'IPM_1', 'IPM_2', 'IPM_3', 'IPM_X', 'IPM_Y', 'Io', 'IMAGENUMBER']] = d[i]
+    model = model.reset_index()
 
     model['Icryst'] = 0.25*model['Io']*(
             erf((model['CRYSTRIGHT']  - model['BEAMX'])/divx) - 
