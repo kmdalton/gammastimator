@@ -27,6 +27,10 @@ argDict = {
     "--partialitymin"          : "Minimum partiality of reflections",
     "--energy"                 : "X-Ray energy in electron volts",
 
+    #IPM parameters
+    "--ipmslope"               : "Relation between IPM reading and photon flux", 
+    "--ipmintercept"           : "Relation between IPM reading and photon flux", 
+
     #Beam geometry parameters
     "--sigx"                   : "Standard deviation in x pos in 'microns'",
     "--sigy"                   : "Standard deviation in y pos in 'microns'",
@@ -61,6 +65,10 @@ datatypes = {
     "--partialitymin"          : float,
     "--energy"                 : float,
 
+    #IPM parameters
+    "--ipmslope"               : float, 
+    "--ipmintercept"           : float, 
+
     #Beam geometry parameters
     "--sigx"                   : float,
     "--sigy"                   : float,
@@ -94,6 +102,10 @@ defaults = {
     "--partialitystd"          : 0.2, 
     "--partialitymin"          : 0.1, 
     "--energy"                 : 12398., 
+
+    #IPM parameters
+    "--ipmslope"               : 1., 
+    "--ipmintercept"           : 0., 
 
     #Beam geometry parameters
     "--sigx"                   : 10.,
@@ -203,7 +215,7 @@ def build_model(offFN, onFN, **kw):
     keys = [
             'BEAMX' ,
             'BEAMY' ,
-            'Io'    ,
+            'IPM'    ,
             'Icryst',
             'IPM_0' ,
             'IPM_1' ,
@@ -225,8 +237,8 @@ def build_model(offFN, onFN, **kw):
     model = model.set_index(['RUN', 'PHINUMBER', 'SERIES'])
     n = len(g)
 
-    #Things we need to populate: Io, Icryst, BEAMX, BEAMY, IPM_0, IPM_1, IPM_2, IPM_3, IPM_X, IPM_Y
-    #Note that Io == sum(IPM_0,1,2,3)
+    #Things we need to populate: IPM, Icryst, BEAMX, BEAMY, IPM_0, IPM_1, IPM_2, IPM_3, IPM_X, IPM_Y
+    #Note that IPM == sum(IPM_0,1,2,3)
     sigx,sigy = kw.get('sigx', 10.),kw.get('sigy', 5.)
     divx,divy = kw.get('divx', 100.),kw.get('divy', 50.)
     divx,divy = np.sqrt(2)*divx,np.sqrt(2)*divy
@@ -241,8 +253,9 @@ def build_model(offFN, onFN, **kw):
     d = np.hstack((d, np.arange(n)[:, None] + 1))
 
     for i,idx in enumerate(g.groups):
-        model.loc[idx, ['BEAMX', 'BEAMY', 'IPM_0', 'IPM_1', 'IPM_2', 'IPM_3', 'IPM_X', 'IPM_Y', 'Io', 'IMAGENUMBER']] = d[i]
+        model.loc[idx, ['BEAMX', 'BEAMY', 'IPM_0', 'IPM_1', 'IPM_2', 'IPM_3', 'IPM_X', 'IPM_Y', 'IPM', 'IMAGENUMBER']] = d[i]
     model = model.reset_index()
+    model['Io'] = model['IPM']*kw.get('ipmslope', 1.) + kw.get('ipmintercept', 0.)
 
     model['Icryst'] = 0.25*model['Io']*(
             erf((model['CRYSTRIGHT']  - model['BEAMX'])/divx) - 

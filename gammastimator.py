@@ -49,11 +49,16 @@ def main():
 
     #h is a dataframe that maps each h,k,l to a unique integer
     h = g.reset_index()[['H','K','L']].drop_duplicates().reset_index(drop=True).reset_index().pivot_table(index=['H','K','L'], values='index')
-    gammaidx = h.loc[gammas.reset_index().set_index(['H', 'K', 'L'])
+    gammaidx,imagenumber = h.loc[gammas.reset_index().set_index(['H', 'K', 'L'])
 
     r = len(gammas.reset_index().groupby('RUN'))
     runidx = gammas.reset_index()['RUN'] - 1
     M = image_metadata(data)
+
+    #We need two sparse tensors to map from Icryst estimates into the liklihood function. 
+    tmp = np.array(imagenumber)
+    idx = np.vstack((np.indices(tmp.shape)[0][tmp > 0], tmp[tmp > 0] - 1)).T
+    tf.SparseTensor(idx, np.ones(len(idx)), imagenumber.shape)    
 
     tf.reset_default_graph()
     #Constants 
@@ -94,8 +99,8 @@ def main():
         ) * (
         tf.erf((tf.gather(ymin, runidx) - beamy)/sigy) - tf.erf((tf.gather(ymax, runidx) - beamy)/sigy)
         )
-        
-    tf.gather(gamma, gammaidx) - rawgammas
+
+    tf.gather(gamma, gammaidx) - rawgammas * tf.matmul(Icryst, 
 
 if __name__=="__main__":
     main()
