@@ -86,8 +86,8 @@ datatypes = {
 defaults = {
     "--multiplicity"           : 10.,
     "--missing"                : 0.0, 
-    "--intensityscale"         : 2.,
-    "--intensityshape"           : 0.2, 
+    "--intensityscale"         : 1.0,
+    "--intensityshape"           : 2.0, 
     "--reflectionsperimage"    : 150,
     "--reflectionsperimagestd" : 50,
     "--minreflectionsperimage" : 50,
@@ -121,16 +121,45 @@ defaults = {
     "--sigalign"               : 10.,
 }
 
+def deorthogonalization(a, b, c, alpha, beta, gamma):
+    V = a*b*c*(1. - np.cos(alpha)**2 - np.cos(beta)**2 - np.cos(gamma)**2 + 2*np.cos(alpha)*np.cos(beta)*np.cos(gamma))**(0.5)
+    O = np.matrix([
+        [a, b*np.cos(gamma), c*np.cos(beta)],
+        [0, b*np.sin(gamma), c*(np.cos(alpha)-np.cos(beta)*np.cos(gamma))/np.sin(gamma)],
+        [0., 0., V/np.sin(gamma)/a/b]
+    ])
+    Oinv = np.linalg.inv(O)
+    return Oinv
+
+def dhkl(h, k, l, a, b, c, alpha, beta, gamma):
+    hkl = np.vstack((h, k, l))
+    Oinv = deorthogonalization(a, b, c, alpha, beta, gamma)
+    d = 1./np.array(np.sum(np.matmul(Oinv.T, hkl), 0)).flatten()
+    return d
+
+def lattice_constants(inFN):
+    a = b = c = alpha = beta = gamma = None
+    with open(inFN) as f:
+        header = f.readline()
+        a = float(header.split("a=")[1].split()[0])
+        b = float(header.split("b=")[1].split()[0])
+        c = float(header.split("c=")[1].split()[0])
+        alpha = float(header.split("alpha=")[1].split()[0])
+        beta  = float(header.split("beta=")[1].split()[0])
+        gamma = float(header.split("gamma=")[1].split()[0])
+    return a,b,c,alpha,beta,gamma
+
 def parsehkl(inFN):
     F = pd.read_csv(inFN, 
         delim_whitespace=True, 
         names=['H','K','L','F'],
         usecols=[1,2,3,5], 
         skiprows=4,
-        index_col=['H','K','L']
     )
+    a,b,c,alpha,beta,gamma = lattice_constants(inFN)
+    F['D'] = dhkl(F['H'], F['K'], F['L'], a, b, c, alpha, beta, gamma)
+    F = F.set_index(['H', 'K', 'L'])
     return F
-
 
 def build_model(offFN, onFN, **kw):
     Fon,Foff = parsehkl(onFN),parsehkl(offFN)
@@ -246,7 +275,7 @@ def build_model(offFN, onFN, **kw):
     d = np.zeros((n, 9)) 
     d[:,0],d[:,1] = np.random.normal(0., sigx, n), np.random.normal(0., sigy, n)
     d[:,2:6] = np.vstack([ipm.ipm_readings(kw.get('energy', 12398.), i, j, points=kw.get('points', 500)) for i,j in zip(d[:,0], d[:,1])])
-    d[:,8] = np.random.gamma(kw.get('intensityshape', 0.2), kw.get('intensityscale', 2.), n)
+    d[:,8] = np.random.gamma(kw.get('intensityshape', 2.0), kw.get('intensityscale', 1.), n)
     d[:,6] = (d[:,3] - d[:,5]) / (d[:,3] + d[:,5])
     d[:,7] = (d[:,2] - d[:,4]) / (d[:,2] + d[:,4])
     d[:,2:6] = d[:,-1,None]*d[:,2:6]/d[:,2:6].sum(1)[:,None]
