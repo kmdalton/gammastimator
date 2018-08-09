@@ -129,7 +129,7 @@ def deorthogonalization(a, b, c, alpha, beta, gamma):
     O = np.array([
         [a, b*np.cos(gamma), c*np.cos(beta)],
         [0, b*np.sin(gamma), c*(np.cos(alpha)-np.cos(beta)*np.cos(gamma))/np.sin(gamma)],
-        [0., 0., V/np.sin(gamma)/a/b]
+        [0., 0., V/(np.sin(gamma)*a*b)]
     ])
     Oinv = np.linalg.inv(O)
     return Oinv
@@ -137,8 +137,7 @@ def deorthogonalization(a, b, c, alpha, beta, gamma):
 def dhkl(h, k, l, a, b, c, alpha, beta, gamma):
     hkl = np.vstack((h, k, l))
     Oinv = deorthogonalization(a, b, c, alpha, beta, gamma)
-    print(np.matmul(Oinv.T, hkl).shape)
-    d = 1./np.sum(np.matmul(Oinv.T, hkl), 0)
+    d = 1./np.sqrt(np.sum(np.square(np.matmul(Oinv.T, hkl)), 0))
     return d
 
 def lattice_constants(inFN):
