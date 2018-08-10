@@ -19,10 +19,8 @@ X,Y = np.linspace(-17000, 17000, points), np.linspace(-17000, 17000, points)
 X,Y = np.meshgrid(X, Y)
 theta,phi = scatter.transform_spherical(X-beamx, Y-beamy, ipm.film_distance)
 
-Z = 1e28*(
-    4.*scatter.differential_intensity(theta, phi, ko, 7) + \
+Z = 4.*scatter.differential_intensity(theta, phi, ko, 7) + \
     3.*scatter.differential_intensity(theta, phi, ko, 14)
-    )
 
 print(Z[int(points/2), int(points/2)])
 
