@@ -169,7 +169,7 @@ def build_model(offFN, onFN, **kw):
     Foff['gamma'] = np.square(Fon['F']/Foff['F'])
     model = Foff.sample(frac=kw.get('multiplicity', 10.), replace=True)
     model['Foff'] = model['F']
-    model['Fon'] = Fon.loc[model.index]
+    model['Fon'] = Fon.loc[model.index]['F']
     del model['F']
     model.reset_index(inplace=True)
 
