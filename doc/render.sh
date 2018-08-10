@@ -2,6 +2,8 @@
 
 ./clean.sh
 
+mkdir renders
+
 for i in fig/*.svg;do
     outfn=${i#fig/}
     outfn=${outfn%.svg}.pdf
