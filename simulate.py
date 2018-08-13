@@ -164,6 +164,44 @@ def parsehkl(inFN):
     F = F.set_index(['H', 'K', 'L'])
     return F
 
+class crystal():
+    def __init__(self, hklFN):
+        self.cell = lattice_constants(hklFN)
+        self.A = np.linalg.inv(deorthogonalization(*self.cell))
+        self.F = parsehkl(hklFN)
+
+    def rotate(self, phistep, axis=None):
+        phistep = np.deg2rad(phistep)
+        if axis is None:
+            axis = np.array([0., 1, 0.])
+        R = np.identity(3)*np.cos(phistep) + np.sin(phistep)*np.cross(axis, [[1, 0, 0], [0, 1, 0], [0, 0, 1]]).T + (1 - np.cos(phistep))*np.outer(axis, axis)
+        self.A = np.matmul(R, self.A)
+        return self
+
+    def reflections(self, wavelength=None, tol=None, detector_distance=None):
+        detector_distance= 100. if detector_distance is None else detector_distance
+        wavelength = 1. if wavelength is None else wavelength
+        tol = 0.005 if tol is None else tol
+        Ainv = np.linalg.inv(self.A)
+        def err(x):
+            h = np.array(x.name)
+            S = np.matmul(Ainv, h)
+            return 0.5*np.dot(S, S) - np.dot(S, [0, 0, 1./wavelength])
+        F = self.F[np.abs(self.F.apply(err, 1)) <= tol]
+
+        def coordinate(x):
+            h = np.array(x.name)
+            S = np.matmul(Ainv, h)
+            S1 = S+np.array([0,0,1/wavelength])
+            XYZ = detector_distance*S1[:2]/S1[2]
+            return pd.Series(XYZ)
+
+        return F.join(F.apply(coordinate, 1).rename(columns={0:'X', 1:'Y'}))
+
+def better_model(offFN, onFN, **kw):
+    Fon,Foff = parsehkl(onFN),parsehkl(offFN)
+    Foff['gamma'] = np.square(Fon['F']/Foff['F'])
+
 def build_model(offFN, onFN, **kw):
     Fon,Foff = parsehkl(onFN),parsehkl(offFN)
     Foff['gamma'] = np.square(Fon['F']/Foff['F'])
