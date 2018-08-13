@@ -158,10 +158,51 @@ The particular angle along that circle is given by $\phi$.
 \end{figure}
 
 \section{Model for For Observed Reflection Intensities}
-In order to generate, realistic "observations" of Bragg peak intensities, $I_h$, several factors must be considered. 
+\subsection{Generating rotation series of crystals}
+This section is based heavily on information published in the International Tables for Crystallography Volume F \cite{Otwinowski2012-yb}. 
+Given the orientation of the unit cell vectors in the lab frame, we define an orientation matrix, 
+\begin{equation}
+\bold{A}
+=
+\begin{bmatrix}
+a_x & a_y & a_z \\
+b_x & b_y & b_z \\
+c_x & c_y & c_z \\
+\end{bmatrix}.
+\end{equation}
+Historically, this is referred to by the creative epithet ``the A-matrix". 
+According to Otwinowski et al. \cite{Otwinowski2012-yb}, the diffraction conditions can be summarized in terms of the A-matrix as well as the incident beam wavevector $\bold{S_o} = (0, 0, \lambda ^{-1})$ and scattering vector, $\bold{S}$. 
+The scattering vector for a particular $hkl$, can be computed from the A-matrix by $\bold{S_h}=\bold{A^{-1}h}$. 
+The reciprocal lattice point indexed by $\bold{h}=(h, k, l)$ will intersect the Ewald sphere and be observable if the condition,
+\begin{equation}
+\bold{S_h\cdot S_o} = \frac{1}{2}\bold{S_h\cdot S_h},
+\end{equation}
+is met. 
+
+\subsection{Reflection intensities in conventional crystallography experiments}
+Conventional crystallography relies on rotating the crystal at an ideally constant rotational velocity while a detector records the reflection intensities. 
+According to Giacovazzo\cite{Giacovazzo2011-wp}, the intensity of a reflection realized on the detector in a conventional X-ray diffraction experiment can be computed by
+
+\begin{align}
+I_h &= k_1 k_2 I_o L P T E F_h^2 \nonumber \\
+k_1 &= \bigg(\frac{e^4} {m^2c^4} \bigg) \nonumber \\ 
+k_2 &= \bigg(\frac{\lambda^3 \Omega} {V^2} \bigg) .\nonumber
+\end{align}
+
+At it's core, this equation states that the intensity of a particular reflection, $h$, is proportional to the intensity of the incoming X-ray beam, $I_o$, times the square of the structure factor amplitude, $F_h$. 
+The rest of the parameters amount to constants, experimental geometry, and corrections. 
+The first constant, $k_1$, is a collection of constants inherited from classical scattering equations with $e$ and $m$ referring to the charge and mass of an electron respectively. $c$ is just the speed of light. 
+The second constant, $k_2$, contains information about the experimental conditions. $\lambda$ is the wavelength of the X-ray beam. $\Omega$ and $V$ describe the amount of scattering material in the X-ray path. In particular, $\Omega$ is the volume of the crystal while $V$ is the volume of the unit cell. 
+The Lorentz factor, $L$, corrects for the amount of time a reflection spends in the diffracting condition during an oscillation. 
+The transmission factor, $T$, corrects for the ammount of X-rays absorbed by the crystal. 
+The polarization factor, $P$, corrects for polarization dependence of scattering. 
+The extinction factor, $E$, is quite difficult to calculate, but it is meant to encapsulate the effects of crystal mosaicity and destructive interference caused by multiple reflections of the incident beam. Interestingly, Giacovazzo \cite{Giacovazzo2011-wp}, comments that cryo-cooling of crystals is an efficient way to reduce mosaicity and hence the exctinction factor in diffraction experiments. In point of fact, it has been my experience that room temperature crystallography usually yields quite low mosaicity data sets. 
+
+
+\subsection{Intensities as handled in simulate.py}
+In order to generate, realistic ``observations" of Bragg peak intensities, $I_h$, several factors must be considered. 
 Chiefly, the reflection intensity is proportional to the square of the structure factor amplitude. 
 However, the squared structure factor amplitude must be modified by several factors. 
-
 \begin{equation}
 I_h \propto F_h^2pfI_o
 \end{equation}
