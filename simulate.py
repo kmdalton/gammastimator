@@ -1,8 +1,12 @@
 import argparse
 from scipy.special import erf
+from multiprocessing.pool import Pool
+from multiprocessing import cpu_count
 import ipm
 import numpy as np
 import pandas as pd
+
+p = Pool(cpu_count())
 
 argDict = {
     "Fon"                      : "CNS file containing pumped structure factor amplitudes.",
@@ -121,18 +125,29 @@ defaults = {
     "--sigalign"               : 10.,
 }
 
-def deorthogonalization(a, b, c, alpha, beta, gamma):
+
+def cellvol(a, b, c, alpha, beta, gamma):
     alpha = np.deg2rad(alpha)
     beta  = np.deg2rad(beta)
     gamma = np.deg2rad(gamma)
     V = a*b*c*(1. - np.cos(alpha)*np.cos(alpha) - np.cos(beta)*np.cos(beta) - np.cos(gamma)*np.cos(gamma) + 2*np.cos(alpha)*np.cos(beta)*np.cos(gamma))**(0.5)
+    return V
+
+def orthogonalization(a, b, c, alpha, beta, gamma):
+    V = cellvol(a, b, c, alpha, beta, gamma)
+    alpha = np.deg2rad(alpha)
+    beta  = np.deg2rad(beta)
+    gamma = np.deg2rad(gamma)
     O = np.array([
         [a, b*np.cos(gamma), c*np.cos(beta)],
         [0, b*np.sin(gamma), c*(np.cos(alpha)-np.cos(beta)*np.cos(gamma))/np.sin(gamma)],
         [0., 0., V/(np.sin(gamma)*a*b)]
     ])
-    Oinv = np.linalg.inv(O)
-    return Oinv
+    return O
+
+def deorthogonalization(a, b, c, alpha, beta, gamma):
+    O = orthogonalization(a, b, c, alpha, beta, gamma)
+    return np.linalg.inv(O)
 
 def dhkl(h, k, l, a, b, c, alpha, beta, gamma):
     hkl = np.vstack((h, k, l))
@@ -167,13 +182,15 @@ def parsehkl(inFN):
 class crystal():
     def __init__(self, hklFN):
         self.cell = lattice_constants(hklFN)
-        self.A = np.linalg.inv(deorthogonalization(*self.cell))
+        #By default, A is initialized to +x
+        self.A = orthogonalization(*self.cell)
         self.F = parsehkl(hklFN)
 
     def rotate(self, phistep, axis=None):
         phistep = np.deg2rad(phistep)
         if axis is None:
             axis = np.array([0., 1, 0.])
+        #Formula for arbitrary rotation about an axis
         R = np.identity(3)*np.cos(phistep) + np.sin(phistep)*np.cross(axis, [[1, 0, 0], [0, 1, 0], [0, 0, 1]]).T + (1 - np.cos(phistep))*np.outer(axis, axis)
         self.A = np.matmul(R, self.A)
         return self
@@ -188,19 +205,131 @@ class crystal():
             S = np.matmul(Ainv, h)
             return 0.5*np.dot(S, S) - np.dot(S, [0, 0, 1./wavelength])
         F = self.F[np.abs(self.F.apply(err, 1)) <= tol]
-
         def coordinate(x):
             h = np.array(x.name)
             S = np.matmul(Ainv, h)
             S1 = S+np.array([0,0,1/wavelength])
-            XYZ = detector_distance*S1[:2]/S1[2]
+            XYZ = detector_distance*S1/S1[2]
             return pd.Series(XYZ)
+        F['A'] = [self.A[:,0]]*len(F)
+        F['B'] = [self.A[:,1]]*len(F)
+        F['C'] = [self.A[:,2]]*len(F)
+        return F.join(F.apply(coordinate, 1).rename(columns={0:'X', 1:'Y', 2:'Z'}))
 
-        return F.join(F.apply(coordinate, 1).rename(columns={0:'X', 1:'Y'}))
+    def orientrandom(self):
+        self.rotate(360.*np.random.random(), axis=[1., 0., 0.])
+        self.rotate(360.*np.random.random(), axis=[0., 1., 0.])
+        self.rotate(360.*np.random.random(), axis=[0., 0., 1.])
+        return self
+
+    def phiseries(self, phistep, nsteps, reflections_kwargs=None, axis=None):
+        axis = [0,1,0] if axis is None else axis
+        reflections_kwargs = {} if reflections_kwargs is None else reflections_kwargs
+        F = None
+        for i in range(1, nsteps+1):
+            self.rotate(phistep, axis)
+            f = self.reflections(**reflections_kwargs)
+            f['PHINUMBER'] = i
+            F = pd.concat((F, f))
+        return F
 
 def better_model(offFN, onFN, **kw):
-    Fon,Foff = parsehkl(onFN),parsehkl(offFN)
-    Foff['gamma'] = np.square(Fon['F']/Foff['F'])
+    #Crystal orientation
+    sigalign = kw.get("sigalign", 10.)
+
+    #Crystal dimensions 
+    height = kw.get("height", 50.)
+    width  = kw.get("width", 100.)
+    sigh   = kw.get("sigheight", 10.)
+    sigw   = kw.get("sigwidth", 10.)
+
+    wavelength = kw.get('wavelength', 1.)
+    ewald_tol  = kw.get('ewald_tol', .005)
+    detector_distance  = kw.get('detector_distance', 100.0)
+    phistep = kw.get('phistep', 0.25)
+    nruns = kw.get('runs', 10)
+    runlength = kw.get('runlength', 30)
+    reflections_kwargs = {
+        'wavelength' : wavelength , 
+        'tol'        : ewald_tol, 
+        'detector_distance' : detector_distance,
+    }
+
+    Fon = parsehkl(onFN)
+    X = crystal(offFN)
+    unitcellvolume = cellvol(*X.cell)
+    model = None
+    for i in range(nruns):
+        #randomize the phi angle
+        X.rotate(360.*np.random.random())
+        run = X.phiseries(phistep, runlength)
+        run['RUN'] = i+1
+        x = np.random.normal(0., sigalign)
+        y = np.random.normal(0., sigalign)
+        h = np.random.normal(height, sigh)
+        w = np.random.normal(width , sigw)
+        run['CRYSTBOTTOM'] = y - h/2.
+        run['CRYSTTOP']    = y + h/2.
+        run['CRYSTLEFT']   = x - w/2.
+        run['CRYSTRIGHT']  = x + w/2.
+        run['V'] = np.pi*0.25*w*w*h #The crystal is just modeled as a cylinder to make things easy
+        run['N'] = run['V'] / unitcellvolume
+        model = pd.concat((model, run))
+    model['Fon'] = Fon.loc[model.index]['F']
+    model.rename({"F": "Foff"}, axis=1, inplace=True)
+    model['gamma'] = (model['Fon']/model['Foff'])**2
+
+
+    model['SERIES'] = 'off1'
+    m = model.copy()
+    for i in range(kw.get('offreps', 4)-1):
+        n = m.copy()
+        n['SERIES'] = 'off{}'.format(i+2)
+        model = pd.concat((model, n))
+ 
+    for i in range(kw.get('onreps', 4)):
+        n = m.copy()
+        n['SERIES'] = 'on{}'.format(i+1)
+        model = pd.concat((model, n))
+    return model
+
+def ipmhelper(args):
+    return ipm.ipm_readings(*args)
+
+def populate_ipm_data(model, sigx, sigy, divx, divy, **kw):
+    g = model.groupby(['RUN', 'PHINUMBER', 'SERIES'])
+    model = model.set_index(['RUN', 'PHINUMBER', 'SERIES'])
+    n = len(g)
+
+    #Things we need to populate: IPM, Icryst, BEAMX, BEAMY, IPM_0, IPM_1, IPM_2, IPM_3, IPM_X, IPM_Y
+    #Note that IPM == sum(IPM_0,1,2,3)
+    sigx,sigy = kw.get('sigx', 10.),kw.get('sigy', 5.)
+    divx,divy = kw.get('divx', 100.),kw.get('divy', 50.)
+    divx,divy = np.sqrt(2)*divx,np.sqrt(2)*divy
+
+    d = np.zeros((n, 9)) 
+    d[:,0],d[:,1] = np.random.normal(0., sigx, n), np.random.normal(0., sigy, n)
+    #d[:,2:6] = np.vstack([ipm.ipm_readings(kw.get('energy', 12398.), i, j, points=kw.get('points', 500)) for i,j in zip(d[:,0], d[:,1])])
+    e = kw.get('energy', 12398.) * np.ones(n)
+    points=kw.get('points', 500) * np.ones(n)
+    z = ipm.film_distance * np.ones(n)
+    d[:,2:6] = p.map(ipmhelper, zip(e*np.ones(n), d[:,0], d[:,1], z, points*np.ones(n)))
+    #d[:,2:6] = list(map(ipmhelper, zip(e*np.ones(n), d[:,0], d[:,1], z, points*np.ones(n))))
+
+    d[:,8] = np.random.gamma(kw.get('intensityshape', 2.0), kw.get('intensityscale', 1.), n)
+    d[:,6] = (d[:,3] - d[:,5]) / (d[:,3] + d[:,5])
+    d[:,7] = (d[:,2] - d[:,4]) / (d[:,2] + d[:,4])
+    d[:,2:6] = d[:,-1,None]*d[:,2:6]/d[:,2:6].sum(1)[:,None]
+    d = np.hstack((d, np.arange(n)[:, None] + 1))
+    for key in ['BEAMX', 'BEAMY', 'IPM_0', 'IPM_1', 'IPM_2', 'IPM_3', 'IPM_X', 'IPM_Y', 'IPM', 'IMAGENUMBER']:
+        model[key] = 0.
+
+    for i,idx in enumerate(g.groups):
+        model.loc[idx, ['BEAMX', 'BEAMY', 'IPM_0', 'IPM_1', 'IPM_2', 'IPM_3', 'IPM_X', 'IPM_Y', 'IPM', 'IMAGENUMBER']] = d[i]
+    model = model.reset_index()
+    model['Io'] = model['IPM']*kw.get('ipmslope', 1.) + kw.get('ipmintercept', 0.)
+    return model
+
 
 def build_model(offFN, onFN, **kw):
     Fon,Foff = parsehkl(onFN),parsehkl(offFN)
