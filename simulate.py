@@ -1,4 +1,6 @@
 import argparse
+import symop
+from scatter import ev2angstrom,angstrom2ev
 from scipy.special import erf
 from multiprocessing.pool import Pool
 from multiprocessing import cpu_count
@@ -179,12 +181,33 @@ def parsehkl(inFN):
     F = F.set_index(['H', 'K', 'L'])
     return F
 
+def spacegroup(hklFN):
+    line = open(hklFN).readline()
+    spacegroupname = line.split()[1].split('=')[1]
+    spacegroupname = ''.join(spacegroupname.split('('))
+    spacegroupname = ' '.join(spacegroupname.split(')')).strip()
+    spacegroupname = spacegroupname[0] + ' ' + spacegroupname[1:]
+    return symop.spacegroupnums[spacegroupname]
+
 class crystal():
     def __init__(self, hklFN):
+        self.spacegroup = spacegroup(hklFN)
         self.cell = lattice_constants(hklFN)
         #By default, A is initialized to +x
-        self.A = orthogonalization(*self.cell)
-        self.F = parsehkl(hklFN)
+        self.A = orthogonalization(*self.cell).T
+        F = parsehkl(hklFN).reset_index()
+        F['MERGEDH'] = F['H']
+        F['MERGEDK'] = F['K']
+        F['MERGEDL'] = F['L']
+        self.F = None
+        for k,op in symop.symops[self.spacegroup].items():
+            f = F.copy()
+            f[['H', 'K', 'L']] = np.array(op(f[['H', 'K', 'L']].T).T, int)
+            self.F = pd.concat((self.F, f))
+        Friedel = self.F.copy()
+        Friedel[['H', 'K', 'L']] = -Friedel[['H', 'K', 'L']]
+        self.F = pd.concat((self.F, Friedel)).set_index(['H', 'K', 'L'])
+        self.F = self.F[~self.F.index.duplicated(keep='first')]
 
     def rotate(self, phistep, axis=None):
         phistep = np.deg2rad(phistep)
@@ -192,7 +215,7 @@ class crystal():
             axis = np.array([0., 1, 0.])
         #Formula for arbitrary rotation about an axis
         R = np.identity(3)*np.cos(phistep) + np.sin(phistep)*np.cross(axis, [[1, 0, 0], [0, 1, 0], [0, 0, 1]]).T + (1 - np.cos(phistep))*np.outer(axis, axis)
-        self.A = np.matmul(R, self.A)
+        self.A = np.matmul(self.A, R)
         return self
 
     def reflections(self, wavelength=None, tol=None, detector_distance=None):
@@ -200,15 +223,17 @@ class crystal():
         wavelength = 1. if wavelength is None else wavelength
         tol = 0.005 if tol is None else tol
         Ainv = np.linalg.inv(self.A)
+        So = np.array([0, 0, 1./wavelength])
         def err(x):
             h = np.array(x.name)
             S = np.matmul(Ainv, h)
-            return 0.5*np.dot(S, S) - np.dot(S, [0, 0, 1./wavelength])
+            return 0.5*np.dot(S, S) - np.dot(S, So)
         F = self.F[np.abs(self.F.apply(err, 1)) <= tol]
         def coordinate(x):
             h = np.array(x.name)
             S = np.matmul(Ainv, h)
-            S1 = S+np.array([0,0,1/wavelength])
+            S1 = S+So
+            S1 = S1/(wavelength*np.linalg.norm(S1)) #Map to Ewald Sphere
             XYZ = detector_distance*S1/S1[2]
             return pd.Series(XYZ)
         F['A'] = [self.A[:,0]]*len(F)
@@ -236,14 +261,14 @@ class crystal():
 def better_model(offFN, onFN, **kw):
     #Crystal orientation
     sigalign = kw.get("sigalign", 10.)
-
+    energy = kw.get('energy', 12398.)
+    wavelength = ev2angstrom(energy)
     #Crystal dimensions 
     height = kw.get("height", 50.)
     width  = kw.get("width", 100.)
     sigh   = kw.get("sigheight", 10.)
     sigw   = kw.get("sigwidth", 10.)
 
-    wavelength = kw.get('wavelength', 1.)
     ewald_tol  = kw.get('ewald_tol', .005)
     detector_distance  = kw.get('detector_distance', 100.0)
     phistep = kw.get('phistep', 0.25)
@@ -272,8 +297,8 @@ def better_model(offFN, onFN, **kw):
         run['CRYSTTOP']    = y + h/2.
         run['CRYSTLEFT']   = x - w/2.
         run['CRYSTRIGHT']  = x + w/2.
-        run['V'] = np.pi*0.25*w*w*h #The crystal is just modeled as a cylinder to make things easy
-        run['N'] = run['V'] / unitcellvolume
+        run['CRYSTVOL'] = np.pi*0.25*w*w*h*(1e12) #The crystal is just modeled as a cylinder to make things easy
+        run['CELLVOL'] = unitcellvolume
         model = pd.concat((model, run))
     model['Fon'] = Fon.loc[model.index]['F']
     model.rename({"F": "Foff"}, axis=1, inplace=True)
@@ -291,12 +316,26 @@ def better_model(offFN, onFN, **kw):
         n = m.copy()
         n['SERIES'] = 'on{}'.format(i+1)
         model = pd.concat((model, n))
+
+    model = populate_ipm_data(model, **kw)
+    model['Io'] = model['IPM']*kw.get('ipmslope', 1.) + kw.get('ipmintercept', 0.)
+#    model['Icryst'] = 0.25*model['Io']*(
+#            erf((model['CRYSTRIGHT']  - model['BEAMX'])/divx) - 
+#            erf((model['CRYSTLEFT']   - model['BEAMX'])/divx) 
+#            ) * (
+#            erf((model['CRYSTTOP']    - model['BEAMY'])/divy) - 
+#            erf((model['CRYSTBOTTOM'] - model['BEAMY'])/divy)
+#        )
+#
+    #model['I'] = (wavelength**3*model['CRYSTVOL']/np.square(model['CELLVOL']))*model.P*(model.Fon**2*model.SERIES.str.contains('on') + model.Foff**2*model.SERIES.str.contains('off'))
+    #model['SIGMA(IOBS)'] = kw.get("sigintercept", 5.0) + kw.get("sigslope", 0.03)*model['I']
+    #model['IOBS']  = np.random.normal(model['I'], model['SIGMA(IOBS)'])
     return model
 
 def ipmhelper(args):
     return ipm.ipm_readings(*args)
 
-def populate_ipm_data(model, sigx, sigy, divx, divy, **kw):
+def populate_ipm_data(model, **kw):
     g = model.groupby(['RUN', 'PHINUMBER', 'SERIES'])
     model = model.set_index(['RUN', 'PHINUMBER', 'SERIES'])
     n = len(g)
@@ -327,7 +366,6 @@ def populate_ipm_data(model, sigx, sigy, divx, divy, **kw):
     for i,idx in enumerate(g.groups):
         model.loc[idx, ['BEAMX', 'BEAMY', 'IPM_0', 'IPM_1', 'IPM_2', 'IPM_3', 'IPM_X', 'IPM_Y', 'IPM', 'IMAGENUMBER']] = d[i]
     model = model.reset_index()
-    model['Io'] = model['IPM']*kw.get('ipmslope', 1.) + kw.get('ipmintercept', 0.)
     return model
 
 
