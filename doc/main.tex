@@ -178,6 +178,21 @@ The reciprocal lattice point indexed by $\bold{h}=(h, k, l)$ will intersect the 
 \bold{S_h\cdot S_o} = \frac{1}{2}\bold{S_h\cdot S_h},
 \end{equation}
 is met. 
+For simulating a rotation series, we just compute the error in this condition, $err = | \bold{S_h}\cdot \bold{S_o} - \frac{1}{2}\bold{S_h}\cdot \bold{S_h} |$. 
+The number of Bragg peaks output per image is controlled by thresholding this error. 
+Empirically, values around $err = 0.005$ yield a realistic number of reflections per angle. 
+In principle, the ideal tolerance will depend on the experimental design especially the bandwidth of the lightsource and mosaicity of the sample. 
+
+In order to rotate the crystal, the A-matrix is rotated around a user defined axis. 
+A rotation matrix which rotates the A-matrix about a unit vector axis, $u$, by an angle of $\phi$ is determined by the following:
+
+\begin{equation}
+R = \begin{bmatrix}
+\cos\phi + u_x^2(1-\cos\phi) & u_xu_y(1 - \cos\phi) - u_z\sin\phi & u_xu_z(1 - \cos\phi) - u_z\sin\phi\\
+u_yu_x(1 - \cos\phi) - u_z\sin\phi & \cos \phi + u_y^2(1-\cos \phi) &  u_yu_z(1 - \cos\phi) - u_x\sin\phi\\
+u_zu_x(1 - \cos\phi) - u_y\sin\phi & u_zu_y(1 - \cos\phi) - u_x\sin\phi & \cos \phi + u_z^2(1-\cos \phi) \\
+\end{bmatrix}
+\end{equation}
 
 \subsection{Reflection intensities in conventional crystallography experiments}
 Conventional crystallography relies on rotating the crystal at an ideally constant rotational velocity while a detector records the reflection intensities. 
