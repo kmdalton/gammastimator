@@ -14,15 +14,18 @@ argDict = {
     "Fon"                      : "CNS file containing pumped structure factor amplitudes.",
     "Foff"                     : "CNS file containing un-pumped structure factor amplitudes.",
     "out"                      : "CSV intensity file to output.", 
-    "--multiplicity"           : "The multiplicity to which the dataset is sampled. Internally simulate.py makes draws from the input data with replacement to build up the dataset of reflections. Multiplicity says for the program to make multiplicity * the number of reflections in the input data.",
+    "--crystals"               : "Number of crystals to simulate. Default is 20.", 
+    #"--multiplicity"           : "The multiplicity to which the dataset is sampled. Internally simulate.py makes draws from the input data with replacement to build up the dataset of reflections. Multiplicity says for the program to make multiplicity * the number of reflections in the input data.",
     "--missing"                : "The fraction of missing reflections in the dataset. A given reflection cannot always be integrated across all images at a given phi angle. This feature is meant to emulate the simple reality that reflections are often missing from some images. This will simply subsample the data before output. Users may wish to do this themselves in post. Subsampling will speed up data generation. If you plan to subsample for testing anyway, you may want to use this option.",
     "--intensityscale"         : "Scale parameter for the gamma distribution of IPM intensities",
     "--intensityshape"         : "Shape parameter for the gamma distribution of intensities",
-    "--reflectionsperimage"    : "Average number of reflections per image (default 150)",
-    "--reflectionsperimagestd" : "Std deviation of reflectiosn per image (default 50)",
-    "--minreflectionsperimage" : "Minimum reflections to generate per image",
+    "--phistep"                : "Phi angle rotation in degrees between successive images. Default 0.25 degrees.",
+    #"--reflectionsperimage"    : "Average number of reflections per image (default 150)",
+    #"--reflectionsperimagestd" : "Std deviation of reflectiosn per image (default 50)",
+    #"--minreflectionsperimage" : "Minimum reflections to generate per image",
+    "--braggtol"               : "Maximum deviation from Bragg condition to accept reflection. Default 0.001 inverse angstrom squared.",
     "--minimages"              : "Minimum images per run/crystal",
-    "--meanimages"            : "Mean images per run/crystal",
+    "--meanimages"             : "Mean images per run/crystal",
     "--stdimages"              : "Standard deviation images per run/crystal",
     "--onreps"                 : "Number of on images per phi angle.",
     "--offreps"                : "Number of off images per phi angle.",
@@ -52,13 +55,14 @@ argDict = {
 }
 
 datatypes = {
-    "--multiplicity"           : float ,
+    #"--multiplicity"           : float ,
+    "--crystals"               : int, 
     "--missing"                : float , 
     "--intensityscale"         : float ,
     "--intensityshape"           : float , 
-    "--reflectionsperimage"    : int,
-    "--reflectionsperimagestd" : int,
-    "--minreflectionsperimage" : int,
+#    "--reflectionsperimage"    : int,
+#    "--reflectionsperimagestd" : int,
+#    "--minreflectionsperimage" : int,
     "--minimages"              : int,
     "--meanimages"            : int,
     "--stdimages"              : int, 
@@ -90,15 +94,16 @@ datatypes = {
 }
 
 defaults = {
-    "--multiplicity"           : 10.,
+    "--crystals"               : 20, 
+    #"--multiplicity"           : 10.,
     "--missing"                : 0.0, 
     "--intensityscale"         : 1.0,
     "--intensityshape"           : 2.0, 
-    "--reflectionsperimage"    : 150,
-    "--reflectionsperimagestd" : 50,
-    "--minreflectionsperimage" : 50,
+#    "--reflectionsperimage"    : 150,
+#    "--reflectionsperimagestd" : 50,
+#    "--minreflectionsperimage" : 50,
     "--minimages"              : 10,
-    "--meanimages"            : 10,
+    "--meanimages"            : 50,
     "--stdimages"              : 10, 
     "--onreps"                 : 4, 
     "--offreps"                : 4,
@@ -258,7 +263,14 @@ class crystal():
             F = pd.concat((F, f))
         return F
 
-def better_model(offFN, onFN, **kw):
+def phihelper(args):
+    hklFN, phistep, runlength = args
+    X = crystal(hklFN)
+    #randomize the phi angle
+    X.rotate(360.*np.random.random())
+    return X.phiseries(phistep, runlength)
+
+def build_model(offFN, onFN, **kw):
     #Crystal orientation
     sigalign = kw.get("sigalign", 10.)
     energy = kw.get('energy', 12398.)
@@ -272,7 +284,7 @@ def better_model(offFN, onFN, **kw):
     ewald_tol  = kw.get('ewald_tol', .005)
     detector_distance  = kw.get('detector_distance', 100.0)
     phistep = kw.get('phistep', 0.25)
-    nruns = kw.get('runs', 10)
+    nruns = kw.get('crystals', 20)
     runlength = kw.get('runlength', 30)
     reflections_kwargs = {
         'wavelength' : wavelength , 
@@ -280,14 +292,20 @@ def better_model(offFN, onFN, **kw):
         'detector_distance' : detector_distance,
     }
 
-    Fon = parsehkl(onFN)
+    #Fon = parsehkl(onFN)
+    Fon = crystal(onFN).F
     X = crystal(offFN)
     unitcellvolume = cellvol(*X.cell)
     model = None
-    for i in range(nruns):
+    meanimages = kw.get('meanimages', 50)
+    stdimages = kw.get('stdimages', 20)
+    minimages = kw.get('minimages', 10)
+    runlength = map(int, np.maximum(minimages, np.random.normal(meanimages, stdimages, nruns)))
+    for i,run in enumerate(p.map(phihelper, zip([offFN]*nruns, [phistep]*nruns, runlength))):
+    #for i in range(nruns):
         #randomize the phi angle
-        X.rotate(360.*np.random.random())
-        run = X.phiseries(phistep, runlength)
+        #X.rotate(360.*np.random.random())
+        #run = X.phiseries(phistep, runlength)
         run['RUN'] = i+1
         x = np.random.normal(0., sigalign)
         y = np.random.normal(0., sigalign)
@@ -304,6 +322,10 @@ def better_model(offFN, onFN, **kw):
     model.rename({"F": "Foff"}, axis=1, inplace=True)
     model['gamma'] = (model['Fon']/model['Foff'])**2
 
+    partiality = np.random.normal(kw.get("partialitymean", 0.6), kw.get("partialitystd", 0.2), len(model))
+    partiality = np.minimum(partiality, 1.)
+    partiality = np.maximum(partiality, kw.get("partialitymin", 0.1))
+    model['P'] = partiality
 
     model['SERIES'] = 'off1'
     m = model.copy()
@@ -317,19 +339,26 @@ def better_model(offFN, onFN, **kw):
         n['SERIES'] = 'on{}'.format(i+1)
         model = pd.concat((model, n))
 
+    #Things we need to populate: IPM, Icryst, BEAMX, BEAMY, IPM_0, IPM_1, IPM_2, IPM_3, IPM_X, IPM_Y
+    #Note that IPM == sum(IPM_0,1,2,3)
+    divx,divy = kw.get('divx', 100.),kw.get('divy', 50.)
+    divx,divy = np.sqrt(2)*divx,np.sqrt(2)*divy
+
+    model = model.sample(frac = 1. - kw.get('missing', 0.), replace=False)
     model = populate_ipm_data(model, **kw)
     model['Io'] = model['IPM']*kw.get('ipmslope', 1.) + kw.get('ipmintercept', 0.)
-#    model['Icryst'] = 0.25*model['Io']*(
-#            erf((model['CRYSTRIGHT']  - model['BEAMX'])/divx) - 
-#            erf((model['CRYSTLEFT']   - model['BEAMX'])/divx) 
-#            ) * (
-#            erf((model['CRYSTTOP']    - model['BEAMY'])/divy) - 
-#            erf((model['CRYSTBOTTOM'] - model['BEAMY'])/divy)
-#        )
+    model['Icryst'] = 0.25*model['Io']*(
+            erf((model['CRYSTRIGHT']  - model['BEAMX'])/divx) - 
+            erf((model['CRYSTLEFT']   - model['BEAMX'])/divx) 
+            ) * (
+            erf((model['CRYSTTOP']    - model['BEAMY'])/divy) - 
+            erf((model['CRYSTBOTTOM'] - model['BEAMY'])/divy)
+        )
 #
     #model['I'] = (wavelength**3*model['CRYSTVOL']/np.square(model['CELLVOL']))*model.P*(model.Fon**2*model.SERIES.str.contains('on') + model.Foff**2*model.SERIES.str.contains('off'))
-    #model['SIGMA(IOBS)'] = kw.get("sigintercept", 5.0) + kw.get("sigslope", 0.03)*model['I']
-    #model['IOBS']  = np.random.normal(model['I'], model['SIGMA(IOBS)'])
+    model['I'] = (model['CRYSTVOL']/np.square(model['CELLVOL']))*model.P*(model.Fon**2*model.SERIES.str.contains('on') + model.Foff**2*model.SERIES.str.contains('off'))
+    model['SIGMA(IOBS)'] = kw.get("sigintercept", 5.0) + kw.get("sigslope", 0.03)*model['I']
+    model['IOBS']  = np.random.normal(model['I'], model['SIGMA(IOBS)'])
     return model
 
 def ipmhelper(args):
@@ -369,7 +398,7 @@ def populate_ipm_data(model, **kw):
     return model
 
 
-def build_model(offFN, onFN, **kw):
+def legacy_build_model(offFN, onFN, **kw):
     Fon,Foff = parsehkl(onFN),parsehkl(offFN)
     Foff['gamma'] = np.square(Fon['F']/Foff['F'])
     model = Foff.sample(frac=kw.get('multiplicity', 10.), replace=True)
