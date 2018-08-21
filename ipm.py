@@ -3,6 +3,8 @@ import numpy as np
 import matplotlib as mpl
 from matplotlib import pyplot as plt
 from scipy.integrate import nquad
+from multiprocessing.pool import Pool
+from multiprocessing import cpu_count
 
 
 #Panel dimensions in um (xmin, xmax, ymin, ymax) 
@@ -105,7 +107,7 @@ def ipm_readings(ko, xpos, ypos, l=None, points=None, keys=None, integration_fun
     integration_function = hybrid_integrate_panel if integration_function is None else integration_function
     xpos,ypos = xpos,ypos
     l = film_distance if l is None else l
-    keys = keys or ['T', 'R', 'B', 'L']
+    keys = keys if keys is not None else ['T', 'R', 'B', 'L']
     bounds = {k: (panels[k][0] - xpos ,
                   panels[k][1] - xpos ,
                   panels[k][2] - ypos ,
@@ -290,3 +292,24 @@ def hybrid_integrate_panel(ko, bounds, l=None, Z=None, points=None):
     phi,theta = phi[indicator],theta[indicator]
     A = solid_angle(xmin, xmax, ymin, ymax, np.abs(l))
     return A*np.mean(scatter.differential_intensity(theta,phi,ko,Z))
+
+def parallel_ipm_readings(ko, xpos, ypos, l=None, points=None, keys=None, integration_function=None):
+    n = len(xpos)
+    l = l if l is not None else film_distance
+    points = points if points is not None else 500
+    keys = keys if keys is not None else ['T', 'R', 'B', 'L']
+    integration_function = hybrid_integrate_panel if integration_function is None else integration_function
+
+    l = l if hasattr(l, '__len__') else [l]*n
+    ko = ko if hasattr(ko, '__len__') else [ko]*n
+    points = points if hasattr(points, '__len__') else [points]*n
+    keys   = keys if hasattr(keys, '__len__') else [keys]*n
+    keys   = keys if len(keys)==n else [keys]*n
+    integration_function = integration_function if hasattr(integration_function, '__len__') else [integration_function]*n
+    readings = p.map(_ipmhelper, zip(ko, xpos, ypos, l, points, keys, integration_function))
+    return readings
+
+def _ipmhelper(X):
+    return ipm_readings(*X)
+
+p = Pool(cpu_count())
