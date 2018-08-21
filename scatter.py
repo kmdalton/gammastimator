@@ -17,6 +17,13 @@ mu = electron_mass*c*c/electron_volt
 ro = physical_constants['classical electron radius'][0]
 ro2= 1e28*(ro**2)
 
+#So tired of reinventing this
+def ev2angstrom(energy):
+    return 1e10*h*speed_of_light/(energy*electron_volt)
+
+#Hint: this is the same function as above 0.o
+def angstrom2ev(wavelength):
+    return ev2angstrom(wavelength)
 
 class interpolator(dict):
     def __init__(self, inFN):
