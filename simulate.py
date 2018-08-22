@@ -270,7 +270,6 @@ def main():
 
     parser = parser.parse_args()
     model  = build_model(parser.Fon, parser.Foff, **vars(parser))
-    print(model.keys())
     model.to_csv(parser.out)
 
 if __name__=="__main__":
