@@ -189,7 +189,6 @@ def build_model(offFN, onFN, **kw):
     model['Fon'] = Fon.loc[model.index]['F']
     model.rename({"F": "Foff"}, axis=1, inplace=True)
     model['gamma'] = (model['Fon']/model['Foff'])**2
-
     partiality = np.random.normal(kw.get("partialitymean", 0.6), kw.get("partialitystd", 0.2), len(model))
     partiality = np.minimum(partiality, 1.)
     partiality = np.maximum(partiality, kw.get("partialitymin", 0.1))
@@ -227,11 +226,12 @@ def build_model(offFN, onFN, **kw):
     model['I'] = (model['CRYSTVOL']/np.square(model['CELLVOL']))*model.P*(model.Fon**2*model.SERIES.str.contains('on') + model.Foff**2*model.SERIES.str.contains('off'))
     model['SIGMA(IOBS)'] = kw.get("sigintercept", 5.0) + kw.get("sigslope", 0.03)*model['I']
     model['IOBS']  = np.random.normal(model['I'], model['SIGMA(IOBS)'])
+    model = model[[i for i in model if 'unnamed' not in i.lower()]]
     return model
 
 def populate_ipm_data(model, **kw):
     g = model.groupby(['RUN', 'PHINUMBER', 'SERIES'])
-    model = model.set_index(['RUN', 'PHINUMBER', 'SERIES'])
+    model = model.reset_index().set_index(['RUN', 'PHINUMBER', 'SERIES'])
     n = len(g)
     nprocs = kw.get('procs', cpu_count() -1)
 
@@ -270,6 +270,7 @@ def main():
 
     parser = parser.parse_args()
     model  = build_model(parser.Fon, parser.Foff, **vars(parser))
+    print(model.keys())
     model.to_csv(parser.out)
 
 if __name__=="__main__":
