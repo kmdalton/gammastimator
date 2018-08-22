@@ -118,7 +118,7 @@ class crystal():
     def reflections(self, wavelength=None, tol=None, detector_distance=None):
         detector_distance= 100. if detector_distance is None else detector_distance
         wavelength = 1. if wavelength is None else wavelength
-        tol = 0.005 if tol is None else tol
+        tol = 0.001 if tol is None else tol
         Ainv = np.linalg.inv(self.A)
         So = np.array([0, 0, 1./wavelength])
         def err(x):

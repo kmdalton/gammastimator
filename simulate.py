@@ -149,7 +149,7 @@ def build_model(offFN, onFN, **kw):
     sigh   = kw.get("sigheight", 10.)
     sigw   = kw.get("sigwidth", 10.)
 
-    ewald_tol  = kw.get('ewald_tol', .005)
+    ewald_tol  = kw.get('ewald_tol', .001)
     detector_distance  = kw.get('detector_distance', 100.0)
     phistep = kw.get('phistep', 0.25)
     nruns = kw.get('crystals', 20)
