@@ -3,6 +3,7 @@ import argparse
 import symop
 from scatter import ev2angstrom,angstrom2ev
 from scipy.special import erf
+from multiprocessing import cpu_count
 import ipm
 import numpy as np
 import pandas as pd
@@ -13,6 +14,7 @@ argDict = {
     "Foff"                     : "CNS file containing un-pumped structure factor amplitudes.",
     "out"                      : "CSV intensity file to output.", 
     "--crystals"               : "Number of crystals to simulate. Default is 20.", 
+    "--procs"                  : "Number of processors to use for calculations.",
     #"--multiplicity"           : "The multiplicity to which the dataset is sampled. Internally simulate.py makes draws from the input data with replacement to build up the dataset of reflections. Multiplicity says for the program to make multiplicity * the number of reflections in the input data.",
     "--missing"                : "The fraction of missing reflections in the dataset. A given reflection cannot always be integrated across all images at a given phi angle. This feature is meant to emulate the simple reality that reflections are often missing from some images. This will simply subsample the data before output. Users may wish to do this themselves in post. Subsampling will speed up data generation. If you plan to subsample for testing anyway, you may want to use this option.",
     "--intensityscale"         : "Scale parameter for the gamma distribution of IPM intensities",
@@ -55,6 +57,7 @@ argDict = {
 datatypes = {
     #"--multiplicity"           : float ,
     "--crystals"               : int, 
+    "--procs"                  : int,
     "--missing"                : float , 
     "--intensityscale"         : float ,
     "--intensityshape"           : float , 
@@ -94,6 +97,7 @@ datatypes = {
 
 defaults = {
     "--crystals"               : 20, 
+    "--procs"                  : cpu_count() - 1,
     "--phistep"                : 0.25, 
     #"--multiplicity"           : 10.,
     "--missing"                : 0.0, 
@@ -138,6 +142,7 @@ def build_model(offFN, onFN, **kw):
     sigalign = kw.get("sigalign", 10.)
     energy = kw.get('energy', 12398.)
     wavelength = ev2angstrom(energy)
+    nprocs = kw.get("procs", cpu_count()-1)
     #Crystal dimensions 
     height = kw.get("height", 50.)
     width  = kw.get("width", 100.)
@@ -168,7 +173,7 @@ def build_model(offFN, onFN, **kw):
         #randomize the phi angle
         X.rotate(360.*np.random.random())
         runlength =  int(np.maximum(minimages, np.random.normal(meanimages, stdimages)))
-        run = X.phiseries(phistep, runlength)
+        run = X.phiseries(phistep, runlength, nprocs=nprocs)
         run['RUN'] = i+1
         x = np.random.normal(0., sigalign)
         y = np.random.normal(0., sigalign)
@@ -228,6 +233,7 @@ def populate_ipm_data(model, **kw):
     g = model.groupby(['RUN', 'PHINUMBER', 'SERIES'])
     model = model.set_index(['RUN', 'PHINUMBER', 'SERIES'])
     n = len(g)
+    nprocs = kw.get('procs', cpu_count() -1)
 
     #Things we need to populate: IPM, Icryst, BEAMX, BEAMY, IPM_0, IPM_1, IPM_2, IPM_3, IPM_X, IPM_Y
     #Note that IPM == sum(IPM_0,1,2,3)
@@ -240,7 +246,7 @@ def populate_ipm_data(model, **kw):
     #d[:,2:6] = np.vstack([ipm.ipm_readings(kw.get('energy', 12398.), i, j, points=kw.get('points', 500)) for i,j in zip(d[:,0], d[:,1])])
     e = kw.get('energy', 12398.) 
     points=kw.get('points', 500)
-    d[:,2:6] = np.vstack(ipm.parallel_ipm_readings(e, d[:,0], d[:,1], ipm.film_distance, points))
+    d[:,2:6] = np.vstack(ipm.parallel_ipm_readings(e, d[:,0], d[:,1], ipm.film_distance, points, nprocs=nprocs))
     d[:,8] = np.random.gamma(kw.get('intensityshape', 2.0), kw.get('intensityscale', 1.), n)
     d[:,6] = (d[:,3] - d[:,5]) / (d[:,3] + d[:,5])
     d[:,7] = (d[:,2] - d[:,4]) / (d[:,2] + d[:,4])

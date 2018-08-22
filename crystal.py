@@ -144,11 +144,13 @@ class crystal():
         self.rotate(360.*np.random.random(), axis=[0., 0., 1.])
         return self
 
-    def phiseries(self, phistep, nsteps, reflections_kwargs=None, axis=None):
+    def phiseries(self, phistep, nsteps, reflections_kwargs=None, axis=None, nprocs=None):
         axis = [0,1,0] if axis is None else axis
         reflections_kwargs = {} if reflections_kwargs is None else reflections_kwargs
         iterable = [(self.copy().rotate(i*phistep, axis=axis), reflections_kwargs, i) for i in range(nsteps)]
         #iterable = [i*phistep for i in range(nsteps)]
+        nprocs = cpu_count() if nprocs is None else nprocs
+        p = Pool(nprocs)
         F = p.map(_phihelper, iterable)
         return pd.concat(F)
 
@@ -158,4 +160,3 @@ def _phihelper(X):
     f['PHINUMBER'] = i
     return f
 
-p = Pool(cpu_count())

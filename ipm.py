@@ -293,7 +293,7 @@ def hybrid_integrate_panel(ko, bounds, l=None, Z=None, points=None):
     A = solid_angle(xmin, xmax, ymin, ymax, np.abs(l))
     return A*np.mean(scatter.differential_intensity(theta,phi,ko,Z))
 
-def parallel_ipm_readings(ko, xpos, ypos, l=None, points=None, keys=None, integration_function=None):
+def parallel_ipm_readings(ko, xpos, ypos, l=None, points=None, keys=None, integration_function=None, nprocs=None):
     n = len(xpos)
     l = l if l is not None else film_distance
     points = points if points is not None else 500
@@ -306,10 +306,11 @@ def parallel_ipm_readings(ko, xpos, ypos, l=None, points=None, keys=None, integr
     keys   = keys if hasattr(keys, '__len__') else [keys]*n
     keys   = keys if len(keys)==n else [keys]*n
     integration_function = integration_function if hasattr(integration_function, '__len__') else [integration_function]*n
+    nprocs = cpu_count()-1 if nprocs is None else nprocs
+    p = Pool(nprocs)
     readings = p.map(_ipmhelper, zip(ko, xpos, ypos, l, points, keys, integration_function))
     return readings
 
 def _ipmhelper(X):
     return ipm_readings(*X)
 
-p = Pool(cpu_count())
