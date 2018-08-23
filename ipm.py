@@ -309,6 +309,7 @@ def parallel_ipm_readings(ko, xpos, ypos, l=None, points=None, keys=None, integr
     nprocs = cpu_count()-1 if nprocs is None else nprocs
     p = Pool(nprocs)
     readings = p.map(_ipmhelper, zip(ko, xpos, ypos, l, points, keys, integration_function))
+    p.terminate()
     return readings
 
 def _ipmhelper(X):

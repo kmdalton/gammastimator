@@ -152,6 +152,7 @@ class crystal():
         nprocs = cpu_count() if nprocs is None else nprocs
         p = Pool(nprocs)
         F = p.map(_phihelper, iterable)
+        p.terminate()
         return pd.concat(F)
 
 def _phihelper(X):
