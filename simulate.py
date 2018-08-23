@@ -137,7 +137,7 @@ defaults = {
 }
 
 
-def build_model(offFN, onFN, **kw):
+def shoot_crystal(offFN, onFN, **kw):
     #Crystal orientation
     sigalign = kw.get("sigalign", 10.)
     energy = kw.get('energy', 12398.)
@@ -169,23 +169,23 @@ def build_model(offFN, onFN, **kw):
     stdimages = kw.get('stdimages', 20)
     minimages = kw.get('minimages', 10)
     #runlength = map(int, np.maximum(minimages, np.random.normal(meanimages, stdimages, nruns)))
-    for i in range(nruns):
-        #randomize the phi angle
-        X.rotate(360.*np.random.random())
-        runlength =  int(np.maximum(minimages, np.random.normal(meanimages, stdimages)))
-        run = X.phiseries(phistep, runlength, nprocs=nprocs)
-        run['RUN'] = i+1
-        x = np.random.normal(0., sigalign)
-        y = np.random.normal(0., sigalign)
-        h = np.random.normal(height, sigh)
-        w = np.random.normal(width , sigw)
-        run['CRYSTBOTTOM'] = y - h/2.
-        run['CRYSTTOP']    = y + h/2.
-        run['CRYSTLEFT']   = x - w/2.
-        run['CRYSTRIGHT']  = x + w/2.
-        run['CRYSTVOL'] = np.pi*0.25*w*w*h*(1e12) #The crystal is just modeled as a cylinder to make things easy
-        run['CELLVOL'] = unitcellvolume
-        model = pd.concat((model, run))
+
+    #randomize the phi angle
+    X.rotate(360.*np.random.random())
+    runlength =  int(np.maximum(minimages, np.random.normal(meanimages, stdimages)))
+    model = X.phiseries(phistep, runlength, nprocs=nprocs)
+    model['RUN'] = 1
+    x = np.random.normal(0., sigalign)
+    y = np.random.normal(0., sigalign)
+    h = np.random.normal(height, sigh)
+    w = np.random.normal(width , sigw)
+    model['CRYSTBOTTOM'] = y - h/2.
+    model['CRYSTTOP']    = y + h/2.
+    model['CRYSTLEFT']   = x - w/2.
+    model['CRYSTRIGHT']  = x + w/2.
+    model['CRYSTVOL'] = np.pi*0.25*w*w*h*(1e12) #The crystal is just modeled as a cylinder to make things easy
+    model['CELLVOL'] = unitcellvolume
+
     model['Fon'] = Fon.loc[model.index]['F']
     model.rename({"F": "Foff"}, axis=1, inplace=True)
     model['gamma'] = (model['Fon']/model['Foff'])**2
@@ -229,6 +229,7 @@ def build_model(offFN, onFN, **kw):
     model = model[[i for i in model if 'unnamed' not in i.lower()]]
     return model
 
+
 def populate_ipm_data(model, **kw):
     g = model.groupby(['RUN', 'PHINUMBER', 'SERIES'])
     model = model.reset_index().set_index(['RUN', 'PHINUMBER', 'SERIES'])
@@ -265,12 +266,18 @@ def main():
     parser = argparse.ArgumentParser()
     for k,v in argDict.items():
         parser.add_argument(k, help=v, default=defaults.get(k, None), type=datatypes.get(k, None))
-
-    #TODO: parser.add_argument("--signal_decay", default=None, help="Exponential decay constant to model how I/sig(I) decays with resolution. Default is 0 (no decay).")
-
     parser = parser.parse_args()
-    model  = build_model(parser.Fon, parser.Foff, **vars(parser))
-    model.to_csv(parser.out)
+
+    nruns = parser.crystals
+    outFN = parser.out
+
+    model = None
+    for runnumber in range(1, nruns+1):
+        crystal = shoot_crystal(parser.Fon, parser.Foff, **vars(parser))
+        crystal['RUN'] = runnumber
+        with open(outFN, 'a') as out:
+            crystal.to_csv(out, header=runnumber == 1)
+    #Crystal orientation
 
 if __name__=="__main__":
     main()
