@@ -150,7 +150,6 @@ class crystal():
         iterable = [(self.copy().rotate(i*phistep, axis=axis), reflections_kwargs, i) for i in range(nsteps)]
         #iterable = [i*phistep for i in range(nsteps)]
         nprocs = cpu_count() if nprocs is None else nprocs
-        print("CRYSTAL, NPROCS = {}".format(nprocs))
         p = Pool(nprocs)
         F = p.map(_phihelper, iterable)
         return pd.concat(F)
