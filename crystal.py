@@ -229,12 +229,12 @@ class crystal():
         Dataframe containing the structure factors for the crystal
     """
     def __init__(self, hklFN=None):
-    """
-    Parameters
-    ----------
-    hklFN : str
-        CNS input filename
-    """
+        """
+        Parameters
+        ----------
+        hklFN : str
+            CNS input filename
+        """
         self.spacegroup = None
         self.cell = None
         self.A = None
@@ -270,21 +270,21 @@ class crystal():
         return x
 
     def rotate(self, phistep, axis=None):
-    """
-    Rotate the crystal unit cell by phistep about an axis. Update the A matrix of the crystal accordingly. 
+        """
+        Rotate the crystal unit cell by phistep about an axis. Update the A matrix of the crystal accordingly. 
 
-    Parameters
-    ----------
-    phistep : float
-        The number of degrees to rotate the crystal
-    axis : np.ndarray
-        The cartesian axis on which to rotate the crystal
+        Parameters
+        ----------
+        phistep : float
+            The number of degrees to rotate the crystal
+        axis : np.ndarray
+            The cartesian axis on which to rotate the crystal
 
-    Returns
-    -------
-    crystal
-        This method returns self for easy chaining. 
-    """
+        Returns
+        -------
+        crystal
+            This method returns self for easy chaining. 
+        """
         phistep = np.deg2rad(phistep)
         if axis is None:
             axis = np.array([0., 1, 0.])
@@ -294,21 +294,21 @@ class crystal():
         return self
 
     def reflections(self, wavelength=None, tol=None, detector_distance=None):
-    """
-    Parameters
-    ----------
-    wavelength : float
-        The wavelength of the x-ray beam in Angstroms
-    tol : float, optional
-        Allowed error in the Bragg condition to accept a reflection. The defalt value is 0.001.
-    detector_distance : float
-        The distance of the simulated "detector" from the crystal position. The default value is 100 mm.
+        """
+        Parameters
+        ----------
+        wavelength : float
+            The wavelength of the x-ray beam in Angstroms
+        tol : float, optional
+            Allowed error in the Bragg condition to accept a reflection. The defalt value is 0.001.
+        detector_distance : float
+            The distance of the simulated "detector" from the crystal position. The default value is 100 mm.
 
-    Returns
-    -------
-    pd.Dataframe
-        Dataframe object with reflections, structure factors. 
-    """
+        Returns
+        -------
+        pd.Dataframe
+            Dataframe object with reflections, structure factors. 
+        """
         detector_distance= 100. if detector_distance is None else detector_distance
         wavelength = 1. if wavelength is None else wavelength
         tol = 0.001 if tol is None else tol
@@ -332,41 +332,41 @@ class crystal():
         return F.join(F.apply(coordinate, 1).rename(columns={0:'X', 1:'Y', 2:'Z'}))
 
     def orientrandom(self):
-    """
-    Randomly rotate the unit cell and update the A-matrix correspondingly. 
+        """
+        Randomly rotate the unit cell and update the A-matrix correspondingly. 
 
-    Returns
-    -------
-    crystal
-        This method resturns self for easy chaining. 
-    """
+        Returns
+        -------
+        crystal
+            This method resturns self for easy chaining. 
+        """
         self.rotate(360.*np.random.random(), axis=[1., 0., 0.])
         self.rotate(360.*np.random.random(), axis=[0., 1., 0.])
         self.rotate(360.*np.random.random(), axis=[0., 0., 1.])
         return self
 
     def phiseries(self, phistep, nsteps, reflections_kwargs=None, axis=None, nprocs=None):
-    """
-    Compute a series of images by rotating the crystal. This method uses multiprocessing for parallelization. 
+        """
+        Compute a series of images by rotating the crystal. This method uses multiprocessing for parallelization. 
 
-    Parameters
-    ----------
-    phistep : float
-        Phi angle step in degrees between frames
-    nsteps : int
-        Number of images to simulate
-    reflections_kwargs : dict
-        Keword arguments to pass to crystal.reflections in case you want to override the defaults. Default is None.
-    axis : np.ndarray
-        Axis about which to rotate the crystal. 
-    nprocs : int
-        Number of processors to use for this calculation. 
+        Parameters
+        ----------
+        phistep : float
+            Phi angle step in degrees between frames
+        nsteps : int
+            Number of images to simulate
+        reflections_kwargs : dict
+            Keword arguments to pass to crystal.reflections in case you want to override the defaults. Default is None.
+        axis : np.ndarray
+            Axis about which to rotate the crystal. 
+        nprocs : int
+            Number of processors to use for this calculation. 
 
-    Returns
-    -------
-    pd.DataFrame
-        Datframe containing the accepted reflections from the rotation series. 
-    """
+        Returns
+        -------
+        pd.DataFrame
+            Datframe containing the accepted reflections from the rotation series. 
+        """
         axis = [0,1,0] if axis is None else axis
         reflections_kwargs = {} if reflections_kwargs is None else reflections_kwargs
         iterable = [(self.copy().rotate(i*phistep, axis=axis), reflections_kwargs, i) for i in range(nsteps)]
