@@ -1,10 +1,6 @@
 from multiprocessing.pool import Pool
-from copy import copy
 from multiprocessing import cpu_count
 import symop
-from scatter import ev2angstrom,angstrom2ev
-from scipy.special import erf
-import ipm
 import numpy as np
 import pandas as pd
 
