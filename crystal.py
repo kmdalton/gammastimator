@@ -1,11 +1,35 @@
 from multiprocessing.pool import Pool
 from multiprocessing import cpu_count
+from io import StringIO
 import symop
 import numpy as np
 import pandas as pd
 
 
 def cellvol(a, b, c, alpha, beta, gamma):
+    """
+    Compute the volume of a crystallographic unit cell from the lattice constants.
+
+    Parameters
+    ----------
+    a : float
+        Length of the unit cell A axis in angstroms
+    b : float
+        Length of the unit cell B axis in angstroms
+    c : float
+        Length of the unit cell C axis in angstroms
+    alpha : float
+        Unit cell alpha angle in degrees
+    beta  : float
+        Unit cell beta angle in degrees
+    gamma : float
+        Unit cell gamma angle in degrees
+
+    Returns
+    -------
+    float
+        The volume of the unit cell in cubic angstroms
+    """
     alpha = np.deg2rad(alpha)
     beta  = np.deg2rad(beta)
     gamma = np.deg2rad(gamma)
@@ -13,6 +37,29 @@ def cellvol(a, b, c, alpha, beta, gamma):
     return V
 
 def orthogonalization(a, b, c, alpha, beta, gamma):
+    """
+    Compute the orthogonalization matrix from the unit cell constants
+
+    Parameters
+    ----------
+    a : float
+        Length of the unit cell A axis in angstroms
+    b : float
+        Length of the unit cell B axis in angstroms
+    c : float
+        Length of the unit cell C axis in angstroms
+    alpha : float
+        Unit cell alpha angle in degrees
+    beta  : float
+        Unit cell beta angle in degrees
+    gamma : float
+        Unit cell gamma angle in degrees
+
+    Returns
+    -------
+    np.ndarry
+        A 3x3 array of the orthogonalization matrix corresponding to the supplied cell parameters
+    """
     V = cellvol(a, b, c, alpha, beta, gamma)
     alpha = np.deg2rad(alpha)
     beta  = np.deg2rad(beta)
@@ -25,16 +72,80 @@ def orthogonalization(a, b, c, alpha, beta, gamma):
     return O
 
 def deorthogonalization(a, b, c, alpha, beta, gamma):
+    """
+    Compute the deorthogonalization matrix from the unit cell constants
+
+    Parameters
+    ----------
+    a : float
+        Length of the unit cell A axis in angstroms
+    b : float
+        Length of the unit cell B axis in angstroms
+    c : float
+        Length of the unit cell C axis in angstroms
+    alpha : float
+        Unit cell alpha angle in degrees
+    beta  : float
+        Unit cell beta angle in degrees
+    gamma : float
+        Unit cell gamma angle in degrees
+
+    Returns
+    -------
+    np.ndarry
+        A 3x3 array of the deorthogonalization matrix corresponding to the supplied cell parameters
+    """
     O = orthogonalization(a, b, c, alpha, beta, gamma)
     return np.linalg.inv(O)
 
 def dhkl(h, k, l, a, b, c, alpha, beta, gamma):
+    """
+    Compute the real space lattice plane spacing, "d", associated with a given hkl.
+
+    Parameters
+    ----------
+    h : int or np.ndarray
+        h-index or indices for which you wish to calculate lattice spacing
+    k : int or np.ndarray
+        k-index or indices for which you wish to calculate lattice spacing
+    l : int or np.ndarray
+        l-index or indices for which you wish to calculate lattice spacing
+    a : float
+        Length of the unit cell A axis in angstroms
+    b : float
+        Length of the unit cell B axis in angstroms
+    c : float
+        Length of the unit cell C axis in angstroms
+    alpha : float
+        Unit cell alpha angle in degrees
+    beta  : float
+        Unit cell beta angle in degrees
+    gamma : float
+        Unit cell gamma angle in degrees
+
+    Returns
+    -------
+    float or array_like
+    """
     hkl = np.vstack((h, k, l))
     Oinv = deorthogonalization(a, b, c, alpha, beta, gamma)
     d = 1./np.sqrt(np.sum(np.square(np.matmul(Oinv.T, hkl)), 0))
     return d
 
 def lattice_constants(inFN):
+    """
+    Parse a CNS file and return the crystal lattice constants
+
+    Parameters
+    ----------
+    inFN : string
+        Name of CNS file you wish to parse
+
+    Returns
+    -------
+    np.ndarray
+        A numpy array with the lattice constants [a, b, c, alpha, beta, gamma]
+    """
     a = b = c = alpha = beta = gamma = None
     with open(inFN) as f:
         header = f.readline()
@@ -46,12 +157,35 @@ def lattice_constants(inFN):
         gamma = float(header.split("gamma=")[1].split()[0])
     return np.array([a,b,c,alpha,beta,gamma])
 
+
 def parsehkl(inFN):
-    F = pd.read_csv(inFN, 
+    """
+    Parse a CNS file and return structure factors
+
+    Parameters
+    ----------
+    inFN : string
+        Name of a CNS file you wish to parse
+
+    Returns
+    -------
+    pd.DataFrame
+        Pandas dataframe containing reflection info 
+    """
+    lines = [i for i in open(inFN) if i[:4] == 'INDE']
+
+    colnames = ['H', 'K', 'L', 'F']
+    usecols  = [1, 2, 3, 5]
+    #Determine if there is phase information in the file
+    if len(lines[0].split()) == 7:
+        colnames.append('PHASE')
+        usecols.append(6)
+
+    f = StringIO(''.join(lines))
+    F = pd.read_csv(f, 
         delim_whitespace=True, 
         names=['H','K','L','F'],
         usecols=[1,2,3,5], 
-        skiprows=4,
     )
     a,b,c,alpha,beta,gamma = lattice_constants(inFN)
     F['D'] = dhkl(F['H'], F['K'], F['L'], a, b, c, alpha, beta, gamma)
@@ -59,6 +193,19 @@ def parsehkl(inFN):
     return F
 
 def spacegroup(hklFN):
+    """
+    Parse a CNS file and return the space group number
+
+    Parameters
+    ----------
+    inFN : string
+        Name of a CNS file you wish to parse
+
+    Returns
+    -------
+    int
+        The space group number
+    """
     line = open(hklFN).readline()
     spacegroupname = line.split()[1].split('=')[1]
     spacegroupname = ''.join(spacegroupname.split('('))
@@ -67,7 +214,27 @@ def spacegroup(hklFN):
     return symop.spacegroupnums[spacegroupname]
 
 class crystal():
+    """
+    Representation of a crystal
+
+    Attributes
+    ----------
+    spacegroup : int
+        Number corresponding to the crystal space group
+    cell : np.ndarray
+        Unit cell constants of crystal (A, B, C, alpha, beta, gamma)
+    A : np.ndarray
+        Matrix of unit cell vectors
+    F : pd.DataFrame
+        Dataframe containing the structure factors for the crystal
+    """
     def __init__(self, hklFN=None):
+    """
+    Parameters
+    ----------
+    hklFN : str
+        CNS input filename
+    """
         self.spacegroup = None
         self.cell = None
         self.A = None
@@ -103,6 +270,21 @@ class crystal():
         return x
 
     def rotate(self, phistep, axis=None):
+    """
+    Rotate the crystal unit cell by phistep about an axis. Update the A matrix of the crystal accordingly. 
+
+    Parameters
+    ----------
+    phistep : float
+        The number of degrees to rotate the crystal
+    axis : np.ndarray
+        The cartesian axis on which to rotate the crystal
+
+    Returns
+    -------
+    crystal
+        This method returns self for easy chaining. 
+    """
         phistep = np.deg2rad(phistep)
         if axis is None:
             axis = np.array([0., 1, 0.])
@@ -112,6 +294,21 @@ class crystal():
         return self
 
     def reflections(self, wavelength=None, tol=None, detector_distance=None):
+    """
+    Parameters
+    ----------
+    wavelength : float
+        The wavelength of the x-ray beam in Angstroms
+    tol : float, optional
+        Allowed error in the Bragg condition to accept a reflection. The defalt value is 0.001.
+    detector_distance : float
+        The distance of the simulated "detector" from the crystal position. The default value is 100 mm.
+
+    Returns
+    -------
+    pd.Dataframe
+        Dataframe object with reflections, structure factors. 
+    """
         detector_distance= 100. if detector_distance is None else detector_distance
         wavelength = 1. if wavelength is None else wavelength
         tol = 0.001 if tol is None else tol
@@ -135,12 +332,41 @@ class crystal():
         return F.join(F.apply(coordinate, 1).rename(columns={0:'X', 1:'Y', 2:'Z'}))
 
     def orientrandom(self):
+    """
+    Randomly rotate the unit cell and update the A-matrix correspondingly. 
+
+    Returns
+    -------
+    crystal
+        This method resturns self for easy chaining. 
+    """
         self.rotate(360.*np.random.random(), axis=[1., 0., 0.])
         self.rotate(360.*np.random.random(), axis=[0., 1., 0.])
         self.rotate(360.*np.random.random(), axis=[0., 0., 1.])
         return self
 
     def phiseries(self, phistep, nsteps, reflections_kwargs=None, axis=None, nprocs=None):
+    """
+    Compute a series of images by rotating the crystal. This method uses multiprocessing for parallelization. 
+
+    Parameters
+    ----------
+    phistep : float
+        Phi angle step in degrees between frames
+    nsteps : int
+        Number of images to simulate
+    reflections_kwargs : dict
+        Keword arguments to pass to crystal.reflections in case you want to override the defaults. Default is None.
+    axis : np.ndarray
+        Axis about which to rotate the crystal. 
+    nprocs : int
+        Number of processors to use for this calculation. 
+
+    Returns
+    -------
+    pd.DataFrame
+        Datframe containing the accepted reflections from the rotation series. 
+    """
         axis = [0,1,0] if axis is None else axis
         reflections_kwargs = {} if reflections_kwargs is None else reflections_kwargs
         iterable = [(self.copy().rotate(i*phistep, axis=axis), reflections_kwargs, i) for i in range(nsteps)]
