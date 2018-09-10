@@ -1,7 +1,7 @@
 from multiprocessing.pool import Pool
 from multiprocessing import cpu_count
 from io import StringIO
-import symop
+import symop, re
 import numpy as np
 import pandas as pd
 
@@ -157,6 +157,59 @@ def lattice_constants(inFN):
         gamma = float(header.split("gamma=")[1].split()[0])
     return np.array([a,b,c,alpha,beta,gamma])
 
+class hklfile(pd.DataFrame):
+    def __init__(self, hklFN=None):
+        pd.DataFrame.__init__(self)
+        self.header=None
+        self.dataname = None #Store name like FOBS or IOBS
+        self.filename = hklFN
+        self._parse()
+
+    def _parse(self):
+        if self.filename is not None:
+            self.header  = [i for i in open(self.filename) if i[:4] != 'INDE']
+            declare = [i for i in self.header if i[:4] == 'DECL'][0]
+            lines   = [i for i in open(self.filename) if i[:4] == 'INDE']
+
+            colnames = ['H', 'K', 'L']
+            colnames.append(re.search(r"(?<=NAME=)[^\s]*", declare).group())
+            self.dataname = colnames[-1]
+
+            usecols  = [1, 2, 3, 5]
+            #Determine if there is phase information in the file
+            if len(lines[0].split()) == 7:
+                colnames.append('PHASE')
+                usecols.append(6)
+
+            f = StringIO(''.join(lines))
+            F = pd.read_csv(f, 
+                delim_whitespace=True, 
+                names=colnames,
+                usecols=usecols,
+            )
+            a,b,c,alpha,beta,gamma = lattice_constants(self.filename)
+            F['D'] = dhkl(F['H'], F['K'], F['L'], a, b, c, alpha, beta, gamma)
+            F = F.set_index(['H', 'K', 'L'])
+            pd.DataFrame.__init__(self, F)
+
+    def write(self, outfile):
+        """
+        Parameters
+        ----------
+        outfile : file or string
+            Output filename or file object
+        """
+        if isinstance(outfile, str):
+            outfile = open(outfile, 'w')
+        outfile.write(''.join(self.header))
+        for (h,k,l),F in self.iterrows():
+            line = "INDE {} {} {} {}= {:0.4f}".format(h, k, l, self.dataname, F[self.dataname])
+            if 'PHASE' in F:
+                line += " {}\n".format(F['PHASE'])
+            else:
+                line += "\n"
+            outfile.write(line)
+        outfile.close()
 
 def parsehkl(inFN):
     """

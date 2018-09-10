@@ -1,5 +1,5 @@
 #This is a simple test case to debug the gammastimator. I just flipped the rotamer of ubiquitin histidine 68 and computed structure factors for the flipped and unflipped. Structure factor amplitudes were calculated with phenix.fmodel. If you're playing along at home, the way to generate these data is:
 
 #Surprise! This is a shell script
-phenix.fmodel 1ubq.pdb high_resolution=1.5 format=cns label=FOBS type=real
-phenix.fmodel 1ubq-flip.pdb high_resolution=1.5 format=cns label=FOBS type=real
+phenix.fmodel 1ubq.pdb high_resolution=1.5 format=cns label=FOBS type=complex
+phenix.fmodel 1ubq-flip.pdb high_resolution=1.5 format=cns label=FOBS type=complex
