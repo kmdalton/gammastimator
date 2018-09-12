@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 
 
+
 def cellvol(a, b, c, alpha, beta, gamma):
     """
     Compute the volume of a crystallographic unit cell from the lattice constants.
@@ -132,141 +133,18 @@ def dhkl(h, k, l, a, b, c, alpha, beta, gamma):
     d = 1./np.sqrt(np.sum(np.square(np.matmul(Oinv.T, hkl)), 0))
     return d
 
-def lattice_constants(inFN):
-    """
-    Parse a CNS file and return the crystal lattice constants
+class crystalseries(pd.Series):
+    spacegroup = None
+    cell = None
+    A = None
+    F = None
+    V = None
 
-    Parameters
-    ----------
-    inFN : string
-        Name of CNS file you wish to parse
+    @property
+    def _constructor(self):
+        return crystalseries
 
-    Returns
-    -------
-    np.ndarray
-        A numpy array with the lattice constants [a, b, c, alpha, beta, gamma]
-    """
-    a = b = c = alpha = beta = gamma = None
-    with open(inFN) as f:
-        header = f.readline()
-        a = float(header.split("a=")[1].split()[0])
-        b = float(header.split("b=")[1].split()[0])
-        c = float(header.split("c=")[1].split()[0])
-        alpha = float(header.split("alpha=")[1].split()[0])
-        beta  = float(header.split("beta=")[1].split()[0])
-        gamma = float(header.split("gamma=")[1].split()[0])
-    return np.array([a,b,c,alpha,beta,gamma])
-
-class hklfile(pd.DataFrame):
-    def __init__(self, hklFN=None):
-        pd.DataFrame.__init__(self)
-        self.header=None
-        self.dataname = None #Store name like FOBS or IOBS
-        self.filename = hklFN
-        self._parse()
-
-    def _parse(self):
-        if self.filename is not None:
-            self.header  = [i for i in open(self.filename) if i[:4] != 'INDE']
-            declare = [i for i in self.header if i[:4] == 'DECL'][0]
-            lines   = [i for i in open(self.filename) if i[:4] == 'INDE']
-
-            colnames = ['H', 'K', 'L']
-            colnames.append(re.search(r"(?<=NAME=)[^\s]*", declare).group())
-            self.dataname = colnames[-1]
-
-            usecols  = [1, 2, 3, 5]
-            #Determine if there is phase information in the file
-            if len(lines[0].split()) == 7:
-                colnames.append('PHASE')
-                usecols.append(6)
-
-            f = StringIO(''.join(lines))
-            F = pd.read_csv(f, 
-                delim_whitespace=True, 
-                names=colnames,
-                usecols=usecols,
-            )
-            a,b,c,alpha,beta,gamma = lattice_constants(self.filename)
-            F['D'] = dhkl(F['H'], F['K'], F['L'], a, b, c, alpha, beta, gamma)
-            F = F.set_index(['H', 'K', 'L'])
-            pd.DataFrame.__init__(self, F)
-
-    def write(self, outfile):
-        """
-        Parameters
-        ----------
-        outfile : file or string
-            Output filename or file object
-        """
-        if isinstance(outfile, str):
-            outfile = open(outfile, 'w')
-        outfile.write(''.join(self.header))
-        for (h,k,l),F in self.iterrows():
-            line = "INDE {} {} {} {}= {:0.4f}".format(h, k, l, self.dataname, F[self.dataname])
-            if 'PHASE' in F:
-                line += " {}\n".format(F['PHASE'])
-            else:
-                line += "\n"
-            outfile.write(line)
-        outfile.close()
-
-def parsehkl(inFN):
-    """
-    Parse a CNS file and return structure factors
-
-    Parameters
-    ----------
-    inFN : string
-        Name of a CNS file you wish to parse
-
-    Returns
-    -------
-    pd.DataFrame
-        Pandas dataframe containing reflection info 
-    """
-    lines = [i for i in open(inFN) if i[:4] == 'INDE']
-
-    colnames = ['H', 'K', 'L', 'F']
-    usecols  = [1, 2, 3, 5]
-    #Determine if there is phase information in the file
-    if len(lines[0].split()) == 7:
-        colnames.append('PHASE')
-        usecols.append(6)
-
-    f = StringIO(''.join(lines))
-    F = pd.read_csv(f, 
-        delim_whitespace=True, 
-        names=['H','K','L','F'],
-        usecols=[1,2,3,5], 
-    )
-    a,b,c,alpha,beta,gamma = lattice_constants(inFN)
-    F['D'] = dhkl(F['H'], F['K'], F['L'], a, b, c, alpha, beta, gamma)
-    F = F.set_index(['H', 'K', 'L'])
-    return F
-
-def spacegroup(hklFN):
-    """
-    Parse a CNS file and return the space group number
-
-    Parameters
-    ----------
-    inFN : string
-        Name of a CNS file you wish to parse
-
-    Returns
-    -------
-    int
-        The space group number
-    """
-    line = open(hklFN).readline()
-    spacegroupname = line.split()[1].split('=')[1]
-    spacegroupname = ''.join(spacegroupname.split('('))
-    spacegroupname = ' '.join(spacegroupname.split(')')).strip()
-    spacegroupname = spacegroupname[0] + ' ' + spacegroupname[1:]
-    return symop.spacegroupnums[spacegroupname]
-
-class crystal():
+class crystal(pd.DataFrame):
     """
     Representation of a crystal
 
@@ -281,46 +159,91 @@ class crystal():
     F : pd.DataFrame
         Dataframe containing the structure factors for the crystal
     """
-    def __init__(self, hklFN=None):
-        """
-        Parameters
-        ----------
-        hklFN : str
-            CNS input filename
-        """
-        self.spacegroup = None
-        self.cell = None
-        self.A = None
-        self.F = None
-        if hklFN is not None:
-            self._parse(hklFN)
 
-    def _parse(self, hklFN):
-        self.spacegroup = spacegroup(hklFN)
-        self.cell = lattice_constants(hklFN)
-        #By default, A is initialized to +x
+    _metadata = ['header', 'spacegroup', 'cell', 'A', 'V']
+    header = None
+    spacegroup = None
+    cell = None
+    A = None
+    V = None
+
+    @property
+    def _constructor(self):
+        return crystal
+
+    @property
+    def _constructor_sliced(self):
+        return crystalseries
+
+    def read_hkl(self, hklFN):
+        #This could be made fast/lightweight at the expense of readability later
+        self.header  = [i for i in open(hklFN) if i[:4] != 'INDE']
+        declare      = [i for i in self.header if i[:4] == 'DECL'][0]
+        lines        = [i for i in open(hklFN) if i[:4] == 'INDE']
+
+        a = float(re.search(r'(?<=a=)[^\s]+(?<!\s)', ''.join(self.header)).group())
+        b = float(re.search(r'(?<=b=)[^\s]+(?<!\s)', ''.join(self.header)).group())
+        c = float(re.search(r'(?<=c=)[^\s]+(?<!\s)', ''.join(self.header)).group())
+        alpha = float(re.search(r'(?<=alpha=)[^\s]+(?<!\s)', ''.join(self.header)).group())
+        beta  = float(re.search(r'(?<=beta=)[^\s]+(?<!\s)', ''.join(self.header)).group())
+        gamma = float(re.search(r'(?<=gamma=)[^\s]+(?<!\s)', ''.join(self.header)).group())
+        self.cell = np.array([a, b, c, alpha, beta, gamma])
         self.A = orthogonalization(*self.cell).T
-        F = parsehkl(hklFN).reset_index()
-        F['MERGEDH'] = F['H']
-        F['MERGEDK'] = F['K']
-        F['MERGEDL'] = F['L']
-        self.F = None
-        for k,op in symop.symops[self.spacegroup].items():
-            f = F.copy()
-            f[['H', 'K', 'L']] = np.array(op(f[['H', 'K', 'L']].T).T, int)
-            self.F = pd.concat((self.F, f))
-        Friedel = self.F.copy()
-        Friedel[['H', 'K', 'L']] = -Friedel[['H', 'K', 'L']]
-        self.F = pd.concat((self.F, Friedel)).set_index(['H', 'K', 'L'])
-        self.F = self.F[~self.F.index.duplicated(keep='first')]
 
-    def copy(self):
-        x = crystal()
-        x.cell = self.cell.copy()
-        x.spacegroup = self.spacegroup
-        x.A = self.A.copy()
-        x.F = self.F.copy()
-        return x
+        sg = re.search(r'(?<=sg=)[^\s]+(?<!\s)', ''.join(self.header)).group()
+        sg = re.sub(r'\(', '', sg)
+        sg = re.sub(r'\)', ' ', sg)
+        sg = sg[0] + ' ' + sg[1:].strip()
+        self.spacegroup = symop.spacegroupnums[sg]
+
+        colnames = ['H', 'K', 'L']
+        colnames.append(re.search(r"(?<=NAME=)[^\s]*", declare).group())
+        self.dataname = colnames[-1]
+
+        usecols  = [1, 2, 3, 5]
+
+        #Determine if there is phase information in the file
+        if len(lines[0].split()) == 7:
+            colnames.append('PHASE')
+            usecols.append(6)
+
+        f = StringIO(''.join(lines))
+        F = pd.read_csv(f, 
+            delim_whitespace=True, 
+            names=colnames,
+            usecols=usecols,
+        )
+
+        for k,v in F.items():
+            self[k] = v
+
+        self['D'] = dhkl(F['H'], F['K'], F['L'], *self.cell)
+        self.set_index(['H', 'K', 'L'], inplace=True)
+        return self
+
+    def _overwrite(self, df):
+        self.reset_index(inplace=True)
+        for k in self:
+            print('byebye ' + k)
+            del(self[k])
+        print(self)
+        for k,v in df.reset_index().items():
+            print('hihi ' + k)
+            self[k] = v
+        self.set_index(['H', 'K', 'L'], inplace=True)
+
+    def unmerge(self):
+        F = self.reset_index()
+        for k,op in symop.symops[self.spacegroup].items():
+            f = self.reset_index().copy()
+            f[['H', 'K', 'L']] = np.array(op(f[['H', 'K', 'L']].T).T, int)
+            F = F.append(f)
+        Friedel = F.copy()
+        Friedel[['H', 'K', 'L']] = -Friedel[['H', 'K', 'L']]
+        F = F.append(Friedel).set_index(['H', 'K', 'L'])
+        F = F[~F.index.duplicated(keep='first')]
+        self.__init__(F)
+        return self
 
     def rotate(self, phistep, axis=None):
         """
@@ -371,7 +294,7 @@ class crystal():
             h = np.array(x.name)
             S = np.matmul(Ainv, h)
             return 0.5*np.dot(S, S) - np.dot(S, So)
-        F = self.F[np.abs(self.F.apply(err, 1)) <= tol]
+        F = self[np.abs(self.apply(err, 1)) <= tol]
         def coordinate(x):
             h = np.array(x.name)
             S = np.matmul(Ainv, h)
