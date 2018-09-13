@@ -221,21 +221,38 @@ class crystal(pd.DataFrame):
         self.set_index(['H', 'K', 'L'], inplace=True)
         return self
 
-    def _overwrite(self, df):
-        self.reset_index(inplace=True)
-        for k in self:
-            print('byebye ' + k)
-            del(self[k])
-        print(self)
-        for k,v in df.reset_index().items():
-            print('hihi ' + k)
+    def hkl_to_reciprocal_asu(self, h, k, l):
+        labels = [(-h, -k, -l)]
+        for key,op in symop.symops[self.spacegroup].items():
+            labels.append(tuple(op([h, k, l])))
+        h,k,l = map(int, np.sort(labels, 0)[-1])
+        return crystalseries({'MERGEDH': h, 'MERGEDK': k, 'MERGEDL': l}, dtype=int)
+
+    def populate_merged_hkls(self):
+        #There are ways to make this a lot faster if necessary
+        for k,v in self.apply(lambda x: self.hkl_to_reciprocal_asu(*x.name), 1).items():
             self[k] = v
-        self.set_index(['H', 'K', 'L'], inplace=True)
+        return self
+
+    def unmerge_anomalous(self):
+        F = self.reset_index()
+        F['MERGEDH'] = F['H']
+        F['MERGEDK'] = F['K']
+        F['MERGEDL'] = F['L']
+        Friedel = F.copy()
+        Friedel[['H', 'K', 'L']] = -Friedel[['H', 'K', 'L']]
+        F = F.append(Friedel).set_index(['H', 'K', 'L'])
+        F = F[~F.index.duplicated(keep='first')]
+        self.__init__(F)
+        return self
 
     def unmerge(self):
         F = self.reset_index()
         for k,op in symop.symops[self.spacegroup].items():
             f = self.reset_index().copy()
+            f['MERGEDH'] = f['H']
+            f['MERGEDK'] = f['K']
+            f['MERGEDL'] = f['L']
             f[['H', 'K', 'L']] = np.array(op(f[['H', 'K', 'L']].T).T, int)
             F = F.append(f)
         Friedel = F.copy()
