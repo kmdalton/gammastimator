@@ -35,6 +35,9 @@ argDict = {
     "--partialitystd"          : "Average partiality of reflections",
     "--partialitymin"          : "Minimum partiality of reflections",
     "--energy"                 : "X-Ray energy in electron volts",
+    "--bfactor"                : "Overall temperature factor of the off data. Default is 0 inverse angstroms squared.", 
+    "--deltab"                 : "Overall temperature factor difference between on and off shots (Bon - Boff) in inverse angstroms squared. Default is 0.", 
+    "--excited"                : "Fraction of the molecules excited in the crystal. Defaults 1.", 
 
     #IPM parameters
     "--ipmslope"               : "Relation between IPM reading and photon flux", 
@@ -75,6 +78,10 @@ datatypes = {
     "--partialitystd"          : float,
     "--partialitymin"          : float,
     "--energy"                 : float,
+    "--bfactor"                : float,
+    "--deltab"                 : float,
+    "--excited"                : float,
+
 
     #IPM parameters
     "--ipmslope"               : float, 
@@ -107,7 +114,7 @@ defaults = {
 #    "--reflectionsperimagestd" : 50,
 #    "--minreflectionsperimage" : 50,
     "--minimages"              : 10,
-    "--meanimages"            : 50,
+    "--meanimages"             : 50,
     "--stdimages"              : 10, 
     "--onreps"                 : 4, 
     "--offreps"                : 4,
@@ -117,6 +124,9 @@ defaults = {
     "--partialitystd"          : 0.2, 
     "--partialitymin"          : 0.1, 
     "--energy"                 : 12398., 
+    "--bfactor"                : 0.,
+    "--deltab"                 : 0.,
+    "--excited"                : 1.,
 
     #IPM parameters
     "--ipmslope"               : 1., 
@@ -161,8 +171,8 @@ def shoot_crystal(offFN, onFN, **kw):
     }
 
     #Fon = parsehkl(onFN)
-    Fon = crystal.crystal(onFN).F
-    X = crystal.crystal(offFN)
+    Fon = crystal.crystal().read_hkl(onFN).unmerge()
+    X = crystal.crystal().read_hkl(offFN).unmerge()
     unitcellvolume = crystal.cellvol(*X.cell)
     model = None
     meanimages = kw.get('meanimages', 50)
@@ -186,8 +196,9 @@ def shoot_crystal(offFN, onFN, **kw):
     model['CRYSTVOL'] = np.pi*0.25*w*w*h*(1e12) #The crystal is just modeled as a cylinder to make things easy
     model['CELLVOL'] = unitcellvolume
 
-    model['Fon'] = Fon.loc[model.index]['F']
-    model.rename({"F": "Foff"}, axis=1, inplace=True)
+    #TODO add support for different column names besides FOBS
+    model['Fon'] = Fon.loc[model.index]['FOBS']
+    model.rename({"FOBS": "Foff"}, axis=1, inplace=True)
     model['gamma'] = (model['Fon']/model['Foff'])**2
     partiality = np.random.normal(kw.get("partialitymean", 0.6), kw.get("partialitystd", 0.2), len(model))
     partiality = np.minimum(partiality, 1.)
@@ -221,9 +232,21 @@ def shoot_crystal(offFN, onFN, **kw):
             erf((model['CRYSTTOP']    - model['BEAMY'])/divy) - 
             erf((model['CRYSTBOTTOM'] - model['BEAMY'])/divy)
         )
-#
+
     #model['I'] = (wavelength**3*model['CRYSTVOL']/np.square(model['CELLVOL']))*model.P*(model.Fon**2*model.SERIES.str.contains('on') + model.Foff**2*model.SERIES.str.contains('off'))
-    model['I'] = (model['CRYSTVOL']/np.square(model['CELLVOL']))*model.P*(model.Fon**2*model.SERIES.str.contains('on') + model.Foff**2*model.SERIES.str.contains('off'))
+    bfactor = kw.get("bfactor", 0.)
+    deltab  = kw.get("deltab", 0.)
+    excited = kw.get("excited", 1.)
+
+    #Compute idealized intensities per reflection observation
+    model['I'] = (np.exp(-(bfactor + deltab*model.SERIES.str.contains('on'))/np.square(model.D)/4.)) * (
+        #Crystal dimensions and partiality:
+        model['CRYSTVOL']/np.square(model['CELLVOL'])) * model.P * ( 
+        #On images:
+        excited*model.Fon**2*model.SERIES.str.contains('on') + (1 - excited)*model.Foff**2*model.SERIES.str.contains('on') + \
+        #Off images:
+        model.Foff**2*model.SERIES.str.contains('on')\
+        ) 
     model['SIGMA(IOBS)'] = kw.get("sigintercept", 5.0) + kw.get("sigslope", 0.03)*model['I']
     model['IOBS']  = np.random.normal(model['I'], model['SIGMA(IOBS)'])
     model = model[[i for i in model if 'unnamed' not in i.lower()]]
@@ -275,9 +298,12 @@ def main():
     for runnumber in range(1, nruns+1):
         crystal = shoot_crystal(parser.Fon, parser.Foff, **vars(parser))
         crystal['RUN'] = runnumber
-        with open(outFN, 'a') as out:
-            crystal.to_csv(out, header=runnumber == 1)
-    #Crystal orientation
+        if runnumber == 1:
+            with open(outFN, 'w') as out:
+                crystal.to_csv(out, header=True)
+        else:
+            with open(outFN, 'a') as out:
+                crystal.to_csv(out, header=False)
 
 if __name__=="__main__":
     main()

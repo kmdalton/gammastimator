@@ -156,8 +156,8 @@ class crystal(pd.DataFrame):
         Unit cell constants of crystal (A, B, C, alpha, beta, gamma)
     A : np.ndarray
         Matrix of unit cell vectors
-    F : pd.DataFrame
-        Dataframe containing the structure factors for the crystal
+    V : float
+        Unit cell volumen in cubic angstroms
     """
 
     _metadata = ['header', 'spacegroup', 'cell', 'A', 'V']
@@ -166,6 +166,8 @@ class crystal(pd.DataFrame):
     cell = None
     A = None
     V = None
+    datacol = None
+    errorcol= None
 
     @property
     def _constructor(self):
@@ -175,11 +177,40 @@ class crystal(pd.DataFrame):
     def _constructor_sliced(self):
         return crystalseries
 
-    def read_hkl(self, hklFN):
+    def write_hkl(self, outfile):
+        """
+        Write contents of crystal object to a CNS file
+
+        Parameters
+        ----------
+        hklfile : str or file
+            name of an hkl file or a file like object
+        """
+        if isinstance(outfile, str):
+            outfile = open('outfile', 'w')
+
+        outfile.write(''.join(self.header))
+        for (h,k,l),d in self.iterrows():
+            out.write("".format(h, k, l, self.datacol))
+
+
+    def read_hkl(self, hklfile):
+        """
+        Initialize attributes and populate the crystal object with data from a cns formatted reflection file
+
+        Parameters
+        ----------
+        hklfile : str or file
+            name of an hkl file or a file like object
+        """
+
         #This could be made fast/lightweight at the expense of readability later
-        self.header  = [i for i in open(hklFN) if i[:4] != 'INDE']
+        if isinstance(hklfile, str):
+            hklfile = open(hklfile)
+        lines = hklfile.readlines()
+        self.header  = [i for i in lines if i[:4] != 'INDE']
         declare      = [i for i in self.header if i[:4] == 'DECL'][0]
-        lines        = [i for i in open(hklFN) if i[:4] == 'INDE']
+        lines        = [i for i in lines if i[:4] == 'INDE']
 
         a = float(re.search(r'(?<=a=)[^\s]+(?<!\s)', ''.join(self.header)).group())
         b = float(re.search(r'(?<=b=)[^\s]+(?<!\s)', ''.join(self.header)).group())
@@ -189,6 +220,7 @@ class crystal(pd.DataFrame):
         gamma = float(re.search(r'(?<=gamma=)[^\s]+(?<!\s)', ''.join(self.header)).group())
         self.cell = np.array([a, b, c, alpha, beta, gamma])
         self.A = orthogonalization(*self.cell).T
+        self.V = cellvol(*self.cell)
 
         sg = re.search(r'(?<=sg=)[^\s]+(?<!\s)', ''.join(self.header)).group()
         sg = re.sub(r'\(', '', sg)
@@ -221,17 +253,45 @@ class crystal(pd.DataFrame):
         self.set_index(['H', 'K', 'L'], inplace=True)
         return self
 
-    def hkl_to_reciprocal_asu(self, h, k, l):
-        labels = [(-h, -k, -l)]
+    def hkl_to_reciprocal_asu(self, hkl):
+        hkl = np.array(hkl)
+        labels = None
         for key,op in symop.symops[self.spacegroup].items():
-            labels.append(tuple(op([h, k, l])))
-        h,k,l = map(int, np.sort(labels, 0)[-1])
-        return crystalseries({'MERGEDH': h, 'MERGEDK': k, 'MERGEDL': l}, dtype=int)
+            if labels is None:
+                labels = op(hkl.T)[None, :, :]
+            else:
+                labels = np.concatenate((labels, op(hkl.T)[None, :, :]), 0)
+        labels = np.sort(labels, 0)[-1].astype(int)
+        merged = crystal(index=self.index)
+        print(labels.shape)
+        merged['MERGEDH'], merged['MERGEDK'], merged['MERGEDL'] = labels
+        return merged
 
     def populate_merged_hkls(self):
-        #There are ways to make this a lot faster if necessary
-        for k,v in self.apply(lambda x: self.hkl_to_reciprocal_asu(*x.name), 1).items():
-            self[k] = v
+        hkl = np.vstack(self.index)
+        merged = self.hkl_to_reciprocal_asu(hkl)
+        self.update(merged)
+        self._coerce_dtypes()
+        return self
+
+    def _coerce_dtypes(self):
+        """
+        This needs to exist to correct some problematic default behaviors in pandas. 
+        In future releases, this will hopefull be unnecessary. 
+        """
+        indexnames = self.index.names
+        self.reset_index(inplace=True)
+        datatypes = {
+            'MERGEDH' : int , 
+            'MERGEDK' : int , 
+            'MERGEDL' : int , 
+            'H' : int , 
+            'K' : int , 
+            'L' : int , 
+        }
+        for k,v in datatypes.items():
+            self[k] = self[k].astype(v)
+        self.set_index(indexnames, inplace=True)
         return self
 
     def unmerge_anomalous(self):
@@ -243,7 +303,8 @@ class crystal(pd.DataFrame):
         Friedel[['H', 'K', 'L']] = -Friedel[['H', 'K', 'L']]
         F = F.append(Friedel).set_index(['H', 'K', 'L'])
         F = F[~F.index.duplicated(keep='first')]
-        self.__init__(F)
+        self.update(F)
+        self._coerce_dtypes()
         return self
 
     def unmerge(self):
