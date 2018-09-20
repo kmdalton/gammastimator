@@ -270,7 +270,10 @@ class crystal(pd.DataFrame):
     def populate_merged_hkls(self):
         hkl = np.vstack(self.index)
         merged = self.hkl_to_reciprocal_asu(hkl)
-        self.update(merged)
+        #self.update(merged)
+        self['MERGEDH'] = merged['MERGEDH']
+        self['MERGEDK'] = merged['MERGEDK']
+        self['MERGEDL'] = merged['MERGEDL']
         self._coerce_dtypes()
         return self
 
@@ -290,7 +293,8 @@ class crystal(pd.DataFrame):
             'L' : int , 
         }
         for k,v in datatypes.items():
-            self[k] = self[k].astype(v)
+            if k in self:
+                self[k] = self[k].astype(v)
         self.set_index(indexnames, inplace=True)
         return self
 
