@@ -1,4 +1,4 @@
-{ sg=P1 2(1) 1 a=45.062 b=34.102 c=98.495 alpha=90 beta=90.03 gamma=90 }
+{ sg=P2(1) a=45.062 b=34.102 c=98.495 alpha=90 beta=90.03 gamma=90 }
 NREFlections=48510
 ANOMalous=FALSE
 DECLare NAME=FOBS DOMAin=RECIprocal TYPE=COMPLEX END
