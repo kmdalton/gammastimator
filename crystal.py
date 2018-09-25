@@ -313,6 +313,9 @@ class crystal(pd.DataFrame):
 
     def unmerge(self):
         F = self.reset_index()
+        F['MERGEDH'] = F['H']
+        F['MERGEDK'] = F['K']
+        F['MERGEDL'] = F['L']
         for k,op in symop.symops[self.spacegroup].items():
             f = self.reset_index().copy()
             f['MERGEDH'] = f['H']
@@ -324,6 +327,7 @@ class crystal(pd.DataFrame):
         Friedel[['H', 'K', 'L']] = -Friedel[['H', 'K', 'L']]
         F = F.append(Friedel).set_index(['H', 'K', 'L'])
         F = F[~F.index.duplicated(keep='first')]
+        self._coerce_dtypes()
         self.__init__(F)
         return self
 
