@@ -223,10 +223,13 @@ class crystal(pd.DataFrame):
         self.V = cellvol(*self.cell)
 
         sg = re.search(r'(?<=sg=)[^\s]+(?<!\s)', ''.join(self.header)).group()
-        sg = re.sub(r'\(', '', sg)
-        sg = re.sub(r'\)', ' ', sg)
-        sg = sg[0] + ' ' + sg[1:].strip()
-        self.spacegroup = symop.spacegroupnums[sg]
+        if sg == "P2(1)":
+            self.spacgroup = 4
+        else:
+            sg = re.sub(r'\(', '', sg)
+            sg = re.sub(r'\)', ' ', sg)
+            sg = sg[0] + ' ' + sg[1:].strip()
+            self.spacegroup = symop.spacegroupnums[sg]
 
         colnames = ['H', 'K', 'L']
         colnames.append(re.search(r"(?<=NAME=)[^\s]*", declare).group())
