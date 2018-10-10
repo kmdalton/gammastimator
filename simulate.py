@@ -241,13 +241,13 @@ def shoot_crystal(offFN, onFN, **kw):
     #Compute idealized intensities per reflection observation
     model['I'] = (np.exp(-(bfactor + deltab*model.SERIES.str.contains('on'))/np.square(model.D)/4.)) * (
         #Crystal dimensions and partiality:
-        model['CRYSTVOL']/np.square(model['CELLVOL'])) * model.P * ( 
+        (wavelength**3)*model['CRYSTVOL']/np.square(model['CELLVOL'])) * model.P * ( 
         #On images:
         excited*model.Fon**2*model.SERIES.str.contains('on') + (1 - excited)*model.Foff**2*model.SERIES.str.contains('on') + \
         #Off images:
         model.Foff**2*model.SERIES.str.contains('on')\
         ) 
-    model['SIGMA(IOBS)'] = kw.get("sigintercept", 5.0) + kw.get("sigslope", 0.03)*model['I']
+    model['SIGMA(IOBS)'] = kw.get("sigintercept", np.percentile(model['I'][model['I'] > 0], 20) + kw.get("sigslope", 0.03)*model['I'])
     model['IOBS']  = np.random.normal(model['I'], model['SIGMA(IOBS)'])
     model = model[[i for i in model if 'unnamed' not in i.lower()]]
     return model
