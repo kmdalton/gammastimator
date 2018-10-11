@@ -296,7 +296,7 @@ def main():
 
     model = None
     for runnumber in range(1, nruns+1):
-        crystal = shoot_crystal(parser.Fon, parser.Foff, **vars(parser))
+        crystal = shoot_crystal(parser.Foff, parser.Fon, **vars(parser))
         crystal['RUN'] = runnumber
         if runnumber == 1:
             with open(outFN, 'w') as out:
