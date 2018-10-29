@@ -11,34 +11,46 @@ argDict = {
 
 
 def pare_data(dataframe, columns=None):
-    """Remove reflection observations from which gammas cannot be estimated due to missing on or off reflections."""
+    """Remove reflection observations from which gammas cannot be estimated due to missing on or off reflections. Remove columns which won't be used."""
     if columns is None:
-        columns = [
-            'RUN',
-            'PHINUMBER',
-            'SERIES',
-            'H',
-            'K',
-            'L',
-            'MERGEDH',
-            'MERGEDK',
-            'MERGEDL',
-            'IOBS',
-            'SIGMA(IOBS)',
-            'D', 
-        ]
-        columns = columns + [i for i in dataframe.keys() if 'ipm' in i.lower()]
+        columns = {
+            'RUN' : int,
+            'PHINUMBER': int,
+            'SERIES': str,
+            'H': int,
+            'K': int,
+            'L': int,
+            'MERGEDH': int,
+            'MERGEDK': int,
+            'MERGEDL': int,
+            'IOBS': float,
+            'SIGMA(IOBS)': float,
+            'D': float, 
+        }
+        columns.update({i: float for i in dataframe.keys() if 'ipm' in i.lower()})
     dataframe = dataframe[[i for i in columns if i in dataframe]]
-    print("Number of reflection observations: {}".format(len(dataframe)))
-    print("Multiplicity: {}".format(len(dataframe)/len(dataframe.groupby(['H', 'K', 'L']))))
+    for k,v in columns.items():
+        if k in dataframe:
+            dataframe[k] = dataframe[k].astype(v)
+        else:
+            del dataframe[k]
+
+    #print("Number of reflection observations: {}".format(len(dataframe)))
+    #print("Multiplicity: {}".format(len(dataframe)/len(dataframe.groupby(['H', 'K', 'L']))))
 
     #This removes reflections which were not observed in the 'on' and 'off' datasets at a given rotation
-    dataframe = dataframe.groupby(['H', 'K', 'L', 'RUN', 'PHINUMBER']).filter(lambda x: x.SERIES.str.contains('on').max() and x.SERIES.str.contains('off').max())
-
-    gammaobs = len(dataframe.groupby(['H', 'K', 'L', 'RUN', 'PHINUMBER']))
-    gammamult = gammaobs / len(dataframe.groupby(['H', 'K', 'L']))
-    print("Number of ratio observations: {}".format(gammaobs))
-    print("Ratio multiplicity: {}".format(gammamult)) 
+    #TODO: This line could use some serious optimization. It seems inocuous but runs very slow
+    #dataframe = dataframe.groupby(['H', 'K', 'L', 'RUN', 'PHINUMBER']).filter(lambda x: x.SERIES.str.contains('on').max() and x.SERIES.str.contains('off').max())
+    dataframe['on'] = dataframe.SERIES.str.contains('on')
+    dataframe['off'] = dataframe.SERIES.str.contains('off')
+    dataframe = dataframe.groupby(['H', 'K', 'L', 'RUN', 'PHINUMBER']).filter(lambda x: x.on.max() and x.off.max())
+    
+    del dataframe['on']
+    del dataframe['off']
+    #gammaobs = len(dataframe.groupby(['H', 'K', 'L', 'RUN', 'PHINUMBER']))
+    #gammamult = gammaobs / len(dataframe.groupby(['H', 'K', 'L']))
+    #print("Number of ratio observations: {}".format(gammaobs))
+    #print("Ratio multiplicity: {}".format(gammamult)) 
     return dataframe
 
 def add_index_cols(dataframe):
