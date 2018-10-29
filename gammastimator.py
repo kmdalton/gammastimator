@@ -25,6 +25,7 @@ def pare_data(dataframe, columns=None):
             'MERGEDL',
             'IOBS',
             'SIGMA(IOBS)',
+            'D', 
         ]
         columns = columns + [i for i in dataframe.keys() if 'ipm' in i.lower()]
     dataframe = dataframe[[i for i in columns if i in dataframe]]
@@ -94,9 +95,14 @@ def add_index_cols(dataframe):
     return dataframe
 
 def sparsedeltaFestimate(dataframe, xposkey=None, yposkey=None, intensitykey=None):
+    dataframe = add_index_cols(pare_data(dataframe))
     xposkey = 'IPM2_X' if xposkey is None else xposkey
     yposkey = 'IPM2_Y' if yposkey is None else yposkey
     intensitykey = 'IPM2' if intensitykey is None else intensitykey
+
+    xposkey = 'IPM_X' if xposkey not in dataframe else xposkey
+    yposkey = 'IPM_Y' if yposkey not in dataframe else yposkey
+    intensitykey = 'IPM' if intensitykey not in dataframe else intensitykey
 
     k = [i for i in dataframe if 'ipm' in i.lower()]
     k += ['RUNINDEX']
@@ -225,6 +231,47 @@ def split(dataframe, frac=None):
     idx = np.arange(l)
     idx = np.random.choice(idx, int(frac*l))
     return dataframe.iloc[idx], dataframe.iloc[~idx]
+
+
+def cchalf(cryst, dataframe, function, bins):
+    """
+    Compute cchalf of a function over resolution bins
+    Parameters
+    ----------
+    cryst : crystal.crystal
+        needed to get reflection resolution among other things
+    dataframe : pd.DataFrame
+        dataframe containing the ratiometric TR-X data
+    function : callable
+        a function that returns a dataframe of, for instance, sparce estimates of delta f. this is the thing from which correlation coefficients will be computed. 
+    bins : int
+        number of resolution bins
+    Returns
+    -------
+    cchalf : np.ndarray
+    binedges : np.ndarray
+    """
+
+    cryst.unmerge()
+    for k in cryst:
+        if k in dataframe:
+            del dataframe[k]
+    dataframe = dataframe.join(cryst, ['H', 'K', 'L'])
+    dmin = dataframe['D'].min()
+    dmax = dataframe['D'].max()
+    binedges = np.linspace(dmin**-2, dmax**-2, bins+1)**-0.5
+    binedges = list(zip(binedges[:-1], binedges[1:]))
+    xval_a, xval_b  = map(function, split(dataframe))
+    xval_a, xval_b  = xval_a.join(cryst['D']),xval_b.join(cryst['D'])
+    idx = xval_a.index.intersection(xval_b.index)
+    xval_a,xval_b = xval_a.loc[idx],xval_b.loc[idx]
+    cchalf = []
+    for dmin,dmax in binedges:
+        idx = (xval_a['D'] > dmin) & (xval_a['D'] < dmax)
+        a = np.array(xval_a[idx]).flatten()
+        b = np.array(xval_b[idx]).flatten()
+        cchalf.append(np.corrcoef(a,b)[0, 1])
+    return cchalf, binedges
 
 def image_metadata(dataframe, keys = None):
     """Aggregate the image metadata from an integration run into a separate dataframe"""
