@@ -96,9 +96,10 @@ def add_index_cols(dataframe):
 
 def sparsedeltaFestimate(dataframe, xposkey=None, yposkey=None, intensitykey=None):
     dataframe = add_index_cols(pare_data(dataframe))
-    xposkey = 'IPM2_X' if xposkey is None else xposkey
-    yposkey = 'IPM2_Y' if yposkey is None else yposkey
-    intensitykey = 'IPM2' if intensitykey is None else intensitykey
+    print(dataframe.keys())
+    xposkey = 'ipm2_xpos' if xposkey is None else xposkey
+    yposkey = 'ipm2_ypos' if yposkey is None else yposkey
+    intensitykey = 'ipm2' if intensitykey is None else intensitykey
 
     xposkey = 'IPM_X' if xposkey not in dataframe else xposkey
     yposkey = 'IPM_Y' if yposkey not in dataframe else yposkey
