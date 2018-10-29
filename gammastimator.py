@@ -208,8 +208,8 @@ def sparsedeltaFestimate(dataframe, xposkey=None, yposkey=None, intensitykey=Non
     loss = tf.reduce_sum(tf.abs(deltaFoverF))
 
     #TODO: Implement custom optimizers
-    #optimizer = tf.train.AdagradOptimizer(20.).minimize(loss)
-    optimizer = tf.train.AdadeltaOptimizer(5., 0.1).minimize(loss)
+    optimizer = tf.train.AdagradOptimizer(20.).minimize(loss)
+    #optimizer = tf.train.AdadeltaOptimizer(5., 0.1).minimize(loss)
     nsteps =  500
     deltaFestimate = None
     with tf.Session() as sess:
