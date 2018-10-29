@@ -169,10 +169,10 @@ def sparsedeltaFestimate(dataframe, xposkey=None, yposkey=None, intensitykey=Non
     ipm_y      = tf.constant(np.float32(imagemetadata[yposkey]))
 
     #LCs for scaling IPM data
-    x_intercept   = tf.constant(imagemetadata.IPM_X.mean())
-    x_slope       = tf.constant(1./imagemetadata.IPM_X.std())
-    y_intercept   = tf.constant(imagemetadata.IPM_Y.mean())
-    y_slope       = tf.constant(1./imagemetadata.IPM_Y.std())
+    x_intercept   = tf.constant(imagemetadata[xposkey].mean())
+    x_slope       = tf.constant(1./imagemetadata[xposkey].std())
+    y_intercept   = tf.constant(imagemetadata[yposkey].mean())
+    y_slope       = tf.constant(1./imagemetadata[yposkey].std())
     ipm_slope     = tf.constant(1.)
     ipm_intercept = tf.Variable(0.)
 
