@@ -41,12 +41,12 @@ def pare_data(dataframe, columns=None):
     #This removes reflections which were not observed in the 'on' and 'off' datasets at a given rotation
     #TODO: This line could use some serious optimization. It seems inocuous but runs very slow
     #dataframe = dataframe.groupby(['H', 'K', 'L', 'RUN', 'PHINUMBER']).filter(lambda x: x.SERIES.str.contains('on').max() and x.SERIES.str.contains('off').max())
+
     dataframe['on'] = dataframe.SERIES.str.contains('on')
-    dataframe['off'] = dataframe.SERIES.str.contains('off')
-    dataframe = dataframe.groupby(['H', 'K', 'L', 'RUN', 'PHINUMBER']).filter(lambda x: x.on.max() and x.off.max())
-    
+    #dataframe['off'] = dataframe.SERIES.str.contains('off')
+    dataframe = dataframe.groupby(['H', 'K', 'L', 'RUN', 'PHINUMBER']).filter(lambda x: x.on.max() and ~x.on.min())
+
     del dataframe['on']
-    del dataframe['off']
     #gammaobs = len(dataframe.groupby(['H', 'K', 'L', 'RUN', 'PHINUMBER']))
     #gammamult = gammaobs / len(dataframe.groupby(['H', 'K', 'L']))
     #print("Number of ratio observations: {}".format(gammaobs))
@@ -238,23 +238,20 @@ def sparsedeltaFestimate(dataframe, xposkey=None, yposkey=None, intensitykey=Non
     result = result.set_index(['H', 'K', 'L'])
     return result
 
-def split(dataframe, frac=None):
+def split(dataframe, groupingkeys = None, frac=None):
+    groupingkeys = ['H', 'K', 'L', 'RUN', 'PHINUMBER'] if groupingkeys is None else groupingkeys
     frac = 0.5 if frac is None else frac
-    l = len(dataframe)
-    idx = np.arange(l)
-    idx = np.random.choice(idx, int(frac*l))
-    return dataframe.iloc[idx], dataframe.iloc[~idx]
+    g = dataframe.groupby(groupingkeys)
+    labels = np.random.binomial(1, frac, g.ngroups).astype(bool)
+    return dataframe[labels[g.ngroup()]] , dataframe[~labels[g.ngroup()]]
 
-
-def cchalf(cryst, dataframe, function, bins):
+def cchalf(dataframe, function, bins):
     """
     Compute cchalf of a function over resolution bins
     Parameters
     ----------
-    cryst : crystal.crystal
-        needed to get reflection resolution among other things
     dataframe : pd.DataFrame
-        dataframe containing the ratiometric TR-X data
+        dataframe containing the ratiometric TR-X data. Must have a column 'D' for reflection resolution. make sure to pare the dataframe first with gammastimator.pare_data. otherwise, there will be no way to estimate gammas. also truncate very small / negative intensities unless you are defining your own estimators. 
     function : callable
         a function that returns a dataframe of, for instance, sparce estimates of delta f. this is the thing from which correlation coefficients will be computed. 
     bins : int
@@ -264,18 +261,14 @@ def cchalf(cryst, dataframe, function, bins):
     cchalf : np.ndarray
     binedges : np.ndarray
     """
-
-    cryst.unmerge()
-    for k in cryst:
-        if k in dataframe:
-            del dataframe[k]
-    dataframe = dataframe.join(cryst, ['H', 'K', 'L'])
-    dmin = dataframe['D'].min()
-    dmax = dataframe['D'].max()
+    dist = dataframe.set_index(['H', 'K', 'L'])['D'].drop_duplicates()
+    dmin = dist.min()
+    dmax = dist.max()
     binedges = np.linspace(dmin**-2, dmax**-2, bins+1)**-0.5
     binedges = list(zip(binedges[:-1], binedges[1:]))
     xval_a, xval_b  = map(function, split(dataframe))
-    xval_a, xval_b  = xval_a.join(cryst['D']),xval_b.join(cryst['D'])
+    print(xval_a)
+    xval_a, xval_b  = xval_a.join(dist),xval_b.join(dist)
     idx = xval_a.index.intersection(xval_b.index)
     xval_a,xval_b = xval_a.loc[idx],xval_b.loc[idx]
     cchalf = []
@@ -305,6 +298,12 @@ def raw_gammas(dataframe):
     gammas = iobs[[i for i in iobs if 'on' in i]].sum(1) / iobs[[i for i in iobs if 'off' in i]].sum(1)
     return gammas, imagenumber
 
+def append_reference_data(dataframe, crystal):
+    crystal.unmerge()
+    for k in crystal:
+        if k in dataframe:
+            del dataframe[k]
+    return dataframe.join(crystal, ['H', 'K', 'L']).dropna()
 
 def main():
     parser = argparse.ArgumentParser()
