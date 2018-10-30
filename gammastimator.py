@@ -29,9 +29,9 @@ def pare_data(dataframe, columns=None):
         }
         columns.update({i: float for i in dataframe.keys() if 'ipm' in i.lower()})
     dataframe = dataframe[[i for i in columns if i in dataframe]]
-    for k,v in columns.items():
-        if k in dataframe:
-            dataframe[k] = dataframe[k].astype(v)
+    for k in dataframe:
+        if k in columns:
+            dataframe[k] = dataframe[k].astype(columns[k])
         else:
             del dataframe[k]
 
