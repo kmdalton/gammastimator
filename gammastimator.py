@@ -267,7 +267,6 @@ def cchalf(dataframe, function, bins):
     binedges = np.linspace(dmin**-2, dmax**-2, bins+1)**-0.5
     binedges = list(zip(binedges[:-1], binedges[1:]))
     xval_a, xval_b  = map(function, split(dataframe))
-    print(xval_a)
     xval_a, xval_b  = xval_a.join(dist),xval_b.join(dist)
     idx = xval_a.index.intersection(xval_b.index)
     xval_a,xval_b = xval_a.loc[idx],xval_b.loc[idx]
