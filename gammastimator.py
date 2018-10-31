@@ -107,9 +107,9 @@ def add_index_cols(dataframe):
     return dataframe
 
 def scramble_labels(*args):
-    data = np.dstack(args).swapaxes(0, 1)
-    np.random.shuffle(data)
-    data = data.swapaxes(0, 1)
+    data = np.dstack(args)
+    for i in data:
+        np.random.shuffle(i)
     for i,df in enumerate(args):
         df[df.keys()] = data[:,:,i]
 
