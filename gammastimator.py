@@ -106,6 +106,13 @@ def add_index_cols(dataframe):
         dataframe[k] = dataframe.groupby(v).ngroup()
     return dataframe
 
+def scramble_labels(*args):
+    data = np.dstack(args).swapaxes(0, 1)
+    np.random.shuffle(data)
+    data = data.swapaxes(0, 1)
+    for i,df in enumerate(args):
+        df[df.keys()] = data[:,:,i]
+
 def sparsedeltaFestimate(dataframe, xposkey=None, yposkey=None, intensitykey=None):
     dataframe = add_index_cols(pare_data(dataframe))
     xposkey = 'ipm2_xpos' if xposkey is None else xposkey
