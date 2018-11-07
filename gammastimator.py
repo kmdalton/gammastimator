@@ -292,15 +292,18 @@ def cchalf(dataframe, function, bins):
     dmax = dist.max()
     binedges = np.linspace(dmin**-2, dmax**-2, bins+1)**-0.5
     binedges = list(zip(binedges[:-1], binedges[1:]))
-    xval_a, xval_b  = map(function, split(dataframe))
+    a,b = split(dataframe)
+    xval_a, xval_b  = function(a), function(b)
+#TODO: Fix this awful hack
+    key = [i for i in xval_a if i!='D'][0]
     xval_a, xval_b  = xval_a.join(dist),xval_b.join(dist)
     idx = xval_a.index.intersection(xval_b.index)
     xval_a,xval_b = xval_a.loc[idx],xval_b.loc[idx]
     cchalf = []
     for dmin,dmax in binedges:
         idx = (xval_a['D'] > dmin) & (xval_a['D'] < dmax)
-        a = np.array(xval_a[idx]).flatten()
-        b = np.array(xval_b[idx]).flatten()
+        a = np.array(xval_a[idx][key]).flatten()
+        b = np.array(xval_b[idx][key]).flatten()
         cchalf.append(np.corrcoef(a,b)[0, 1])
     return cchalf, binedges
 
