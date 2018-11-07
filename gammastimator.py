@@ -107,13 +107,20 @@ def add_index_cols(dataframe):
     return dataframe
 
 def scramble_labels(*args):
-    data = np.dstack(args)
-    for i in data:
-        np.random.shuffle(i)
+    #TODO: can this be done easier with indices?
+    idx1,idx2 = np.where(~np.isnan(args[0]))
+    tmp = -np.ones(args[0].shape, dtype=int)
+    tmp[idx1, idx2] = idx2
+    for i in tmp:
+        i[i > -1] = np.random.permutation(i[i > -1])
+    permuted_idx2 = tmp[tmp > -1]
     for i,df in enumerate(args):
-        df[df.keys()] = data[:,:,i]
+        data = df.values
+        data[idx1, idx2] = data[idx1, permuted_idx2]
+        df[df.keys()] = data
 
-def sparsedeltaFestimate(dataframe, xposkey=None, yposkey=None, intensitykey=None):
+def sparsedeltaFestimate(dataframe, xposkey=None, yposkey=None, intensitykey=None, scramble=None):
+    scramble = False if scramble is None else bool(scramble)
     dataframe = add_index_cols(pare_data(dataframe))
     xposkey = 'ipm2_xpos' if xposkey is None else xposkey
     yposkey = 'ipm2_ypos' if yposkey is None else yposkey
@@ -123,20 +130,30 @@ def sparsedeltaFestimate(dataframe, xposkey=None, yposkey=None, intensitykey=Non
     yposkey = 'IPM_Y' if yposkey not in dataframe else yposkey
     intensitykey = 'IPM' if intensitykey not in dataframe else intensitykey
 
+    #Prepare the per image metadata
     k = [i for i in dataframe if 'ipm' in i.lower()]
     k += ['RUNINDEX']
     imagemetadata = dataframe[k + ['IMAGEINDEX']].groupby('IMAGEINDEX').mean()
+
+    #Construct pivot tables of intensities, errors, metadatakeys
     iobs        = dataframe.pivot_table(values='IOBS', index=['H', 'K', 'L', 'RUNINDEX','PHIINDEX'], columns='SERIES', fill_value=np.NaN)
     imagenumber = dataframe.pivot_table(values='IMAGEINDEX', index=['H', 'K', 'L', 'RUNINDEX', 'PHIINDEX'], columns='SERIES', fill_value=-1)
+    sigma       = dataframe.pivot_table(values='SIGMA(IOBS)', index=['H', 'K', 'L', 'RUNINDEX','PHIINDEX'], columns='SERIES', fill_value=np.NaN)
+
+    #Optionally permute the series labels in order to scramble assignments of on/off intensities (negative control)
+    if scramble:
+        #I sure hope this works inplace
+        scramble_labels(iobs, imagenumber, sigma)
+
+
+    #Compute raw gammas without beam intensity adjustments
     ion    = iobs[[i for i in iobs if  'on' in i]].sum(1)
     ioff   = iobs[[i for i in iobs if 'off' in i]].sum(1)
     gammas = ion / ioff
-
     gammaidx = dataframe.pivot_table(values='GAMMAINDEX', index=['H', 'K', 'L', 'RUNINDEX','PHIINDEX'])
     gammaidx = np.array(gammaidx).flatten()
 
     #We want to use the error estimates from the integration to weight the merging
-    sigma       = dataframe.pivot_table(values='SIGMA(IOBS)', index=['H', 'K', 'L', 'RUNINDEX','PHIINDEX'], columns='SERIES', fill_value=np.NaN)
     sigmaion    = np.sqrt(np.square(iobs[[i for i in iobs if  'on' in i]]).sum(1))
     sigmaioff   = np.sqrt(np.square(iobs[[i for i in iobs if 'off' in i]]).sum(1))
     sigmagamma  = np.abs(gammas)*np.sqrt(np.square(sigmaion / ion) + np.square(sigmaioff / ioff))
@@ -145,6 +162,8 @@ def sparsedeltaFestimate(dataframe, xposkey=None, yposkey=None, intensitykey=Non
     H = np.array(dataframe.groupby('GAMMAINDEX').mean()['MERGEDH'], dtype=int)
     K = np.array(dataframe.groupby('GAMMAINDEX').mean()['MERGEDK'], dtype=int)
     L = np.array(dataframe.groupby('GAMMAINDEX').mean()['MERGEDL'], dtype=int)
+
+    #return iobs, imagenumber, sigma, gammas, sigmagamma
 
     """
     This block is where we construct the tensorflow graph. 
