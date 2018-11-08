@@ -3,6 +3,7 @@ import tensorflow as tf
 import pandas as pd
 import numpy as np
 import argparse
+from tensorflow.contrib.opt import ScipyOptimizerInterface
 
 
 argDict = {
@@ -118,10 +119,15 @@ def scramble_labels(*args):
         data = df.values
         data[idx1, idx2] = data[idx1, permuted_idx2]
         df[df.keys()] = data
+from time import time
 
-def sparsedeltaFestimate(dataframe, xposkey=None, yposkey=None, intensitykey=None, scramble=None):
+def sparsedeltaFestimate(dataframe, xposkey=None, yposkey=None, intensitykey=None, scramble=None, learning_rate=None, tolerance=None, maxiter=None):
+    start = time()
+    maxiter = 2000 if maxiter is None else maxiter
+    tolerance = 1e-3 if tolerance is None else tolerance
+    learning_rate = 20 if learning_rate is None else learning_rate
     scramble = False if scramble is None else bool(scramble)
-    dataframe = add_index_cols(pare_data(dataframe))
+    dataframe = add_index_cols(dataframe)
     xposkey = 'ipm2_xpos' if xposkey is None else xposkey
     yposkey = 'ipm2_ypos' if yposkey is None else yposkey
     intensitykey = 'ipm2' if intensitykey is None else intensitykey
@@ -130,22 +136,25 @@ def sparsedeltaFestimate(dataframe, xposkey=None, yposkey=None, intensitykey=Non
     yposkey = 'IPM_Y' if yposkey not in dataframe else yposkey
     intensitykey = 'IPM' if intensitykey not in dataframe else intensitykey
 
+    #print("1: {}".format(time() - start))
     #Prepare the per image metadata
     k = [i for i in dataframe if 'ipm' in i.lower()]
     k += ['RUNINDEX']
     imagemetadata = dataframe[k + ['IMAGEINDEX']].groupby('IMAGEINDEX').mean()
 
+    #print("2: {}".format(time() - start))
     #Construct pivot tables of intensities, errors, metadatakeys
     iobs        = dataframe.pivot_table(values='IOBS', index=['H', 'K', 'L', 'RUNINDEX','PHIINDEX'], columns='SERIES', fill_value=np.NaN)
     imagenumber = dataframe.pivot_table(values='IMAGEINDEX', index=['H', 'K', 'L', 'RUNINDEX', 'PHIINDEX'], columns='SERIES', fill_value=-1)
     sigma       = dataframe.pivot_table(values='SIGMA(IOBS)', index=['H', 'K', 'L', 'RUNINDEX','PHIINDEX'], columns='SERIES', fill_value=np.NaN)
 
+    #print("3: {}".format(time() - start))
     #Optionally permute the series labels in order to scramble assignments of on/off intensities (negative control)
     if scramble:
         #I sure hope this works inplace
         scramble_labels(iobs, imagenumber, sigma)
 
-
+    #print("4: {}".format(time() - start))
     #Compute raw gammas without beam intensity adjustments
     ion    = iobs[[i for i in iobs if  'on' in i]].sum(1)
     ioff   = iobs[[i for i in iobs if 'off' in i]].sum(1)
@@ -153,12 +162,14 @@ def sparsedeltaFestimate(dataframe, xposkey=None, yposkey=None, intensitykey=Non
     gammaidx = dataframe.pivot_table(values='GAMMAINDEX', index=['H', 'K', 'L', 'RUNINDEX','PHIINDEX'])
     gammaidx = np.array(gammaidx).flatten()
 
+    #print("5: {}".format(time() - start))
     #We want to use the error estimates from the integration to weight the merging
     sigmaion    = np.sqrt(np.square(iobs[[i for i in iobs if  'on' in i]]).sum(1))
     sigmaioff   = np.sqrt(np.square(iobs[[i for i in iobs if 'off' in i]]).sum(1))
     sigmagamma  = np.abs(gammas)*np.sqrt(np.square(sigmaion / ion) + np.square(sigmaioff / ioff))
     mergingweights = (1. / np.array(sigmagamma, dtype=np.float32)) * ((1./np.array([(1./sigmagamma.iloc[gammaidx == i]).sum() for i in range(gammaidx.max() + 1)], dtype=np.float32))[gammaidx])
 
+    #print("6: {}".format(time() - start))
     H = np.array(dataframe.groupby('GAMMAINDEX').mean()['MERGEDH'], dtype=int)
     K = np.array(dataframe.groupby('GAMMAINDEX').mean()['MERGEDK'], dtype=int)
     L = np.array(dataframe.groupby('GAMMAINDEX').mean()['MERGEDL'], dtype=int)
@@ -246,16 +257,31 @@ def sparsedeltaFestimate(dataframe, xposkey=None, yposkey=None, intensitykey=Non
     loss = tf.reduce_sum(tf.abs(deltaFoverF))
 
     #TODO: Implement custom optimizers
-    optimizer = tf.train.AdagradOptimizer(20.).minimize(loss)
+    optimizer = tf.train.AdagradOptimizer(learning_rate).minimize(loss)
     #optimizer = tf.train.AdadeltaOptimizer(5., 0.1).minimize(loss)
-    nsteps =  500
+
+    #print("7: {}".format(time() - start))
     deltaFestimate = None
     with tf.Session() as sess:
+        #print("8: {}".format(time() - start))
         sess.run(tf.global_variables_initializer())
-        for i in range(nsteps):
-            _ = sess.run((optimizer, loss))
-        deltaFestimate = sess.run(deltaFoverF)
+        _, loss_ = sess.run((optimizer, loss))
+        #print("loss: {}".format(loss_))
+        #print("9: {}".format(time() - start))
+        for i in range(maxiter):
+            deltaFestimate = sess.run(deltaFoverF)
+            _, loss__ = sess.run((optimizer, loss))
+            #print("loss: {}".format(loss__))
+            if np.isnan(loss__):
+                print("Desired error not achieved due to precision loss.")
+                break
+            #Absolute fractional change
+            if np.abs(loss_ - loss__)/loss_ <= tolerance: 
+                print("Converged to tol={} after {} iterations.".format(tolerance, i))
+                break
+            loss_ = loss__
 
+    #print("9: {}".format(time() - start))
     result = pd.DataFrame()
     result['H'] = H
     result['K'] = K
