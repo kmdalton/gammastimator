@@ -121,7 +121,7 @@ def scramble_labels(*args):
         df[df.keys()] = data
 from time import time
 
-def sparsedeltaFestimate(dataframe, xposkey=None, yposkey=None, intensitykey=None, scramble=None, learning_rate=None, tolerance=None, maxiter=None):
+def sparsedeltaFestimate(dataframe, xposkey=None, yposkey=None, intensitykey=None, scramble=None, learning_rate=None, tolerance=None, maxiter=None, rho=None):
     start = time()
     maxiter = 2000 if maxiter is None else maxiter
     tolerance = 1e-3 if tolerance is None else tolerance
@@ -248,17 +248,41 @@ def sparsedeltaFestimate(dataframe, xposkey=None, yposkey=None, intensitykey=Non
         tf.erf((tf.gather(ymin, runidx) - beamy)/sigy) - tf.erf((tf.gather(ymax, runidx) - beamy)/sigy)
         )
 
+    if rho is not None:
+        err = tf.Variable(np.zeros(len(runidx), dtype=np.float32))
+        Icryst = Icryst + err
+
     Bon  = tf.squeeze(tf.sparse_tensor_dense_matmul( onimageidx, tf.expand_dims(Icryst, 1)))
     Boff = tf.squeeze(tf.sparse_tensor_dense_matmul(offimageidx, tf.expand_dims(Icryst, 1)))
 
 
     g = tf.squeeze(tf.sparse_tensor_dense_matmul(mergingtensor, tf.expand_dims(raw_gammas*Boff/(Bon), 1)))
     deltaFoverF = (tf.sqrt(g) - 1.)
-    loss = tf.reduce_sum(tf.abs(deltaFoverF))
 
+    if rho is not None:
+        f_ = int(deltaFoverF.get_shape()[0])
+        e_ = int(err.get_shape()[0])
+        loss = (1/f_)*(1. - rho)*tf.reduce_sum(tf.abs(deltaFoverF)) + (1/e_)*rho*tf.reduce_sum(tf.abs(err))
+    else:
+        loss = tf.reduce_sum(tf.abs(deltaFoverF))
+
+    """
+    optimizer = ScipyOptimizerInterface(loss, method='CG', options={'ftol': 1e-5*np.finfo(float).eps})
+    with tf.Session() as sess:
+        sess.run(tf.global_variables_initializer())
+        deltaFestimate = sess.run(deltaFoverF)
+        optimizer.minimize(sess)
+        loss_ = sess.run(loss)
+        if np.isnan(loss_):
+            print("Desired error not achieved due to precision loss.")
+        else:
+            deltaFestimate = sess.run(deltaFoverF)
+
+
+    """
     #TODO: Implement custom optimizers
-    optimizer = tf.train.AdagradOptimizer(learning_rate).minimize(loss)
-    #optimizer = tf.train.AdadeltaOptimizer(5., 0.1).minimize(loss)
+    #optimizer = tf.train.AdagradOptimizer(learning_rate).minimize(loss)
+    optimizer = tf.train.AdadeltaOptimizer(learning_rate, 0.1).minimize(loss)
 
     #print("7: {}".format(time() - start))
     deltaFestimate = None
