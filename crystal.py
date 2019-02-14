@@ -209,7 +209,7 @@ class crystal(pd.DataFrame):
             hklfile = open(hklfile)
         lines = hklfile.readlines()
         self.header  = [i for i in lines if i[:4] != 'INDE']
-        declare      = [i for i in self.header if i[:4] == 'DECL'][0]
+        declare      = [i for i in self.header if i[:4] == 'DECL']
         lines        = [i for i in lines if i[:4] == 'INDE']
 
         a = float(re.search(r'(?<=a=)[^\s]+(?<!\s)', ''.join(self.header)).group())
@@ -222,6 +222,24 @@ class crystal(pd.DataFrame):
         self.A = orthogonalization(*self.cell).T
         self.V = cellvol(*self.cell)
 
+        self['H'] = list(map(int, (line.split()[1] for line in lines)))
+        self['K'] = list(map(int, (line.split()[2] for line in lines)))
+        self['L'] = list(map(int, (line.split()[3] for line in lines)))
+
+        record_types = {}
+        for line in declare:
+            name = re.search(r'(?<=NAME=)[^\s]+', line).group()
+            typedef = re.search(r'(?<=TYPE=)[^\s]+', line).group()
+            record_types[name] = typedef
+
+        for k,record_type in record_types.items():
+            text = re.findall(r'(?<={}=)[\s\.0123456789-]+'.format(k), ''.join(lines))
+            numbers = np.array(list(map(str.split, text)), dtype=float)
+            if record_type == 'COMPLEX':
+                self[k], self['PHI' + k] = numbers.T
+            elif record_type == 'REAL':
+                self[k] = numbers
+
         sg = re.search(r'(?<=sg=)[^\s]+(?<!\s)', ''.join(self.header)).group()
         if sg == "P2(1)":
             self.spacgroup = 4
@@ -230,29 +248,7 @@ class crystal(pd.DataFrame):
             sg = re.sub(r'\)', ' ', sg)
             sg = sg[0] + ' ' + sg[1:].strip()
             self.spacegroup = symop.spacegroupnums[sg]
-
-        colnames = ['H', 'K', 'L']
-        colnames.append(re.search(r"(?<=NAME=)[^\s]*", declare).group())
-        self.dataname = colnames[-1]
-
-        usecols  = [1, 2, 3, 5]
-
-        #Determine if there is phase information in the file
-        if len(lines[0].split()) == 7:
-            colnames.append('PHASE')
-            usecols.append(6)
-
-        f = StringIO(''.join(lines))
-        F = pd.read_csv(f, 
-            delim_whitespace=True, 
-            names=colnames,
-            usecols=usecols,
-        )
-
-        for k,v in F.items():
-            self[k] = v
-
-        self['D'] = dhkl(F['H'], F['K'], F['L'], *self.cell)
+        self['D'] = dhkl(self['H'], self['K'], self['L'], *self.cell)
         self.set_index(['H', 'K', 'L'], inplace=True)
         return self
 
