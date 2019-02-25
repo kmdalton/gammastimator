@@ -212,10 +212,11 @@ def sparsedeltaFestimate(dataframe, xposkey=None, yposkey=None, intensitykey=Non
 
 
     #Constants 
-    raw_gammas = tf.constant(np.float32(gammas))
-    ipm        = tf.constant(np.float32(imagemetadata[intensitykey]))
-    ipm_x      = tf.constant(np.float32(imagemetadata[xposkey]))
-    ipm_y      = tf.constant(np.float32(imagemetadata[yposkey]))
+    raw_gammas   = tf.constant(np.float32(gammas))
+    sigma_gammas = tf.constant(np.float32(sigmagamma))
+    ipm          = tf.constant(np.float32(imagemetadata[intensitykey]))
+    ipm_x        = tf.constant(np.float32(imagemetadata[xposkey]))
+    ipm_y        = tf.constant(np.float32(imagemetadata[yposkey]))
 
     #LCs for scaling IPM data
     x_intercept   = tf.constant(imagemetadata[xposkey].mean())
@@ -257,14 +258,18 @@ def sparsedeltaFestimate(dataframe, xposkey=None, yposkey=None, intensitykey=Non
 
 
     g = tf.squeeze(tf.sparse_tensor_dense_matmul(mergingtensor, tf.expand_dims(raw_gammas*Boff/(Bon), 1)))
+    variance_g = tf.squeeze(tf.sparse_tensor_dense_matmul(mergingtensor, tf.square(tf.expand_dims(raw_gammas*Boff/(Bon), 1))))
     deltaFoverF = (tf.sqrt(g) - 1.)
+    variance_deltaFestimate  = variance_g*(deltaFoverF/g)**2
 
     if rho is not None:
         f_ = int(deltaFoverF.get_shape()[0])
         e_ = int(err.get_shape()[0])
-        loss = (1/f_)*(1. - rho)*tf.reduce_sum(tf.abs(deltaFoverF)) + (1/e_)*rho*tf.reduce_sum(tf.abs(err))
+        loss = (1/f_)*(1. - rho)*tf.norm(deltaFoverF, 1) + (1/e_)*rho*tf.norm(err, 1)
     else:
-        loss = tf.reduce_sum(tf.abs(deltaFoverF))
+        f_ = int(deltaFoverF.get_shape()[0])
+        loss = (1/f_)*tf.norm(deltaFoverF, 1)
+
 
     """
     optimizer = ScipyOptimizerInterface(loss, method='CG', options={'ftol': 1e-5*np.finfo(float).eps})
@@ -281,27 +286,37 @@ def sparsedeltaFestimate(dataframe, xposkey=None, yposkey=None, intensitykey=Non
 
     """
     #TODO: Implement custom optimizers
-    #optimizer = tf.train.AdagradOptimizer(learning_rate).minimize(loss)
-    optimizer = tf.train.AdadeltaOptimizer(learning_rate, 0.1).minimize(loss)
+    optimizer = tf.train.AdagradOptimizer(learning_rate).minimize(loss)
+    #optimizer = tf.train.AdadeltaOptimizer(learning_rate, 0.1).minimize(loss)
 
     #print("7: {}".format(time() - start))
     deltaFestimate = None
+    variance = None
     with tf.Session() as sess:
         #print("8: {}".format(time() - start))
         sess.run(tf.global_variables_initializer())
+        loss__ = sess.run(loss)
+        if np.isnan(loss__):
+            print("Initial loss is NaN, aborting.")
         _, loss_ = sess.run((optimizer, loss))
+        if np.isnan(loss__):
+            print("Desired error not achieved due to precision loss. Exiting after 0 iterations")
+        #loss_ = sess.run((optimizer, loss))
         #print("loss: {}".format(loss_))
         #print("9: {}".format(time() - start))
         for i in range(maxiter):
             deltaFestimate = sess.run(deltaFoverF)
+            variance = sess.run(variance_deltaFestimate)
             _, loss__ = sess.run((optimizer, loss))
             #print("loss: {}".format(loss__))
             if np.isnan(loss__):
-                print("Desired error not achieved due to precision loss.")
+                print("Desired error not achieved due to precision loss. Exiting after {} iterations".format(i+1))
                 break
             #Absolute fractional change
             if np.abs(loss_ - loss__)/loss_ <= tolerance: 
                 print("Converged to tol={} after {} iterations.".format(tolerance, i))
+                deltaFestimate = sess.run(deltaFoverF)
+                variance = sess.run(variance_deltaFestimate)
                 break
             loss_ = loss__
 
@@ -311,6 +326,7 @@ def sparsedeltaFestimate(dataframe, xposkey=None, yposkey=None, intensitykey=Non
     result['K'] = K
     result['L'] = L
     result['DeltaFoverF'] = deltaFestimate
+    result['Var(DeltaFoverF)'] = variance
     result = result.set_index(['H', 'K', 'L'])
     return result
 
