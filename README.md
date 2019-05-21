@@ -1,6 +1,5 @@
-# gammastimator
+# xppsim
 
 
-Optimization routines for estimating on/off reflection intensity ratios for paired image pump probe experiments.
-
+A collection of objects and functions for simulating scattering and diffraction. This is mostly useful for simulating pump probe X-fel data. 
 
